@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<serviceInformation creationTime="2014-04-25T00:50:31" originator="Global Radio" xml:lang="en" xmlns="http://www.worlddab.org/schemas/spi/31" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.worlddab.org/schemas/spi/31 spi_31.xsd">
+	<services>
+		<serviceProvider>
+			<shortName>Global</shortName>
+			<mediumName>Global Radio</mediumName>
+			<mediaDescription>
+				<multimedia height="240" mimeValue="image/png" type="logo_unrestricted" url="http://epg.musicradio.com/logos/global/320x240.png" width="320"/>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia type="logo_colour_square" url="http://epg.musicradio.com/logos/global/32x32.png"/>
+			</mediaDescription>
+			<link description="Homepage" mimeValue="text/html" uri="http://www.thisisglobal.com"/>
+			<link uri="postal:Global%20Radio/30%20Leicester%20Square/London/WC2H%207LA"/>
+			<link uri="tel:+44-020-77666000"/>
+			<keywords>
+<![CDATA[radio, television, publishing, talent, charities & communities]]>			</keywords>
+		</serviceProvider>
+		<service>
+			<shortName>Capital</shortName>
+			<mediumName>Capitali FM</mediumName>
+			<longName>Capital London</longName>
+			<mediaDescription>
+				<shortDescription>
+<![CDATA[The UK's No.1 Hit Music Station]]>				</shortDescription>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia type="logo_colour_square" url="http://owdo.thisisglobal.com/2.0/id/25/logo/32x32.png"/>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia type="logo_colour_rectangle" url="http://owdo.thisisglobal.com/2.0/id/25/logo/112x32.png"/>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia height="128" mimeValue="image/png" type="logo_unrestricted" url="http://owdo.thisisglobal.com/2.0/id/25/logo/128x128.png" width="128"/>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia height="240" mimeValue="image/png" type="logo_unrestricted" url="http://owdo.thisisglobal.com/2.0/id/25/logo/320x240.png" width="320"/>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia height="600" mimeValue="image/png" type="logo_unrestricted" url="http://owdo.thisisglobal.com/2.0/id/25/logo/800x600.png" width="800"/>
+			</mediaDescription>
+			<mediaDescription>
+				<multimedia height="768" mimeValue="image/png" type="logo_unrestricted" url="http://owdo.thisisglobal.com/2.0/id/25/logo/1024x768.png" width="1024"/>
+			</mediaDescription>
+			<genre href="urn:tva:metadata:cs:ContentCS:2004:3.6.10"/>
+			<genre href="urn:tva:metadata:cs:ContentCS:2004:3.6.8"/>
+			<genre href="urn:tva:metadata:cs:ContentCS:2004:3.6.8.14"/>
+			<genre href="urn:tva:metadata:cs:ContentCS:2004:3.1.4.12"/>
+			<link mimeValue="text/html" uri="http://www.capitalfm.com/london"/>
+			<link uri="sms:83958"/>
+			<keywords>
+<![CDATA[London, music, pop, rock, dance, urban]]>			</keywords>
+			<bearer cost="20" id="dab:ce1.c185.c479.0" mimeValue="audio/mpeg" offset="2000"/>
+			<bearer cost="30" id="fm:ce1.c479.09580"/>
+			<bearer bitrate="48" cost="40" id="http://media-ice.musicradio.com/Capital" mimeValue="audio/aacp" offset="4000"/>
+			<bearer bitrate="48" cost="40" id="http://media-ice.musicradio.com/CapitalMP3Low" mimeValue="audio/mpeg" offset="4000"/>
+			<radiodns host="www.capitalfm.com" serviceIdentifier="london"/>
+			<geolocation>
+				<country>GB</country>
+				<polygon>51.524124 -2.709503 51.572803 -2.668304 51.616310 -2.572174 51.575363 -2.412872 51.504471 -2.379913 51.426613 -2.471924 51.400063 -2.460937 51.387211 -2.511749 51.328896 -2.708130 51.273087 -2.772675 51.238705 -2.938843 51.258476 -3.036346 51.376068 -3.026733 51.472401 -2.859879 51.524124 -2.709503</polygon>
+			</geolocation>
+		</service>
+	</services>
+</serviceInformation>
+

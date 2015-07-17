@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<epg xmlns="http://www.worlddab.org/schemas/spi/31" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.worlddab.org/schemas/spi/31 spi_31.xsd">
+  <programmeGroups xml:lang="en" creationTime="2013-04-25T14:21:15+01:00" originator="Global Radio">
+    <programmeGroup id="crid://www.classicfm.com/shows/tour" shortId="3451" type="show" numOfItems="24">
+      <mediumName>Musical Tour</mediumName>
+      <longName>Classic's Magical Musical Tour</longName>
+      <mediaDescription>
+        <shortDescription>Every Saturday night, join us on a Magical Musical Tour of all things classical music.</shortDescription>
+      </mediaDescription>
+      <genre href="urn:tva:metadata:cs:ContentCS:2009:3.6.1"><![CDATA[ Classical music]]></genre>
+      <genre href="urn:tva:metadata:cs:FormatCS:2002:2.5"><![CDATA[ ARTISTIC PERFORMANCE]]></genre>
+      <genre href="urn:tva:metadata:cs:IntentionCS:2005:1.1"><![CDATA[ ENTERTAINMENT]]></genre>
+      <memberOf id="crid://www.classicfm.com/shows/weekend" shortId="122751"/>
+    </programmeGroup>
+  </programmeGroups>
+</epg>

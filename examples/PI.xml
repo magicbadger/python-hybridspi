@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<epg xmlns="http://www.worlddab.org/schemas/spi/31" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.worlddab.org/schemas/spi/31 spi_31.xsd">
+  <schedule creationTime="2014-04-11T01:20:00+01:00" originator="Global Radio">
+    <scope startTime="2014-04-25T06:00:00+01:00" stopTime="2014-04-25T13:00:00+01:00">
+      <serviceScope id="dab:ce1.c185.c479.0"/>
+      <serviceScope id="fm:ce1.c479.09580"/>
+      <serviceScope id="http://media-ice.musicradio.com/Capital"/>
+      <serviceScope id="http://media-ice.musicradio.com/CapitalMP3Low"/>
+    </scope>
+    <programme id="crid://www.capitalfm.com/4772/1190223" shortId="1190223">
+      <shortName>B'fast</shortName>
+      <mediumName>Breakfast</mediumName>
+      <longName>Capital Breakfast</longName>
+      <location>
+        <time time="2014-04-25T06:00:00+01:00" duration="PT4H" actualTime="2014-04-25T06:00:00+01:00" actualDuration="PT4H"/>
+      </location>
+      <mediaDescription>
+        <shortDescription>Forget the coffee, Capital gives you the perfect morning pick-me- up with a blend of the latest hits, travel news and incomparable morning banter.</shortDescription>
+      </mediaDescription>
+      <genre href="urn:tva:metadata:cs:ContentCS:2002:3.6.8"><![CDATA[ Electronic/Club/Urban/Dance]]></genre>
+      <genre href="urn:tva:metadata:cs:IntentionCS:2002:1.1"><![CDATA[ ENTERTAINMENT]]></genre>
+      <memberOf id="crid://www.capitalfm.com/4772" shortId="4772"/>
+      <link uri="mailto:capital.breakfast@capitalfm.com" description="Email the Capital Breakfast team!"/>
+      <link uri="http://www.capitalfm.com/on-air/breakfast-show/"/>
+      <programmeEvent id="crid://thisisglobal.com/4772/1190223/788946" shortId="788946">
+        <shortName>Pun</shortName>
+        <mediumName>No.1 Pun</mediumName>
+        <longName>London's No. 1 Pun</longName>
+        <location>
+          <relativeTime time="PT3H10M" duration="PT25M"/>
+        </location>
+        <mediaDescription>
+          <shortDescription>
+Can you come up with London's No.1 Pun for our story of the day?
+                    </shortDescription>
+        </mediaDescription>
+      </programmeEvent>
+    </programme>
+  </schedule>
+</epg>
