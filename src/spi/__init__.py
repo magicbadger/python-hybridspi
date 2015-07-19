@@ -545,7 +545,7 @@ class Programme(Named, Described):
     :type version: int
     """   
     
-    def __init__(self, crid, shortcrid, recommendation=True, version=1):
+    def __init__(self, crid, shortcrid, recommendation=False, version=1):
         Named.__init__(self)
         Described.__init__(self)
         self.crid = crid

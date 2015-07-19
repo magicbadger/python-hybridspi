@@ -45,7 +45,7 @@ info = ServiceInfo(originator='Global Radio',
 # Capital London 
 service = Service()
 service.names.append(ShortName('Capital'))
-service.names.append(MediumName('Capitali FM'))
+service.names.append(MediumName('Capital FM'))
 service.names.append(LongName('Capital London'))
 service.descriptions.append(ShortDescription('The UK\'s No.1 Hit Music Station'))
 service.media.append(Multimedia('http://owdo.thisisglobal.com/2.0/id/25/logo/32x32.png',

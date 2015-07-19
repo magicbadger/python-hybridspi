@@ -178,7 +178,7 @@ def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
     for schedule in info.schedules:
         schedule_element = doc.createElement('schedule')
         epg_element.appendChild(schedule_element)
-        schedule_element.setAttribute('version', str(schedule.version))
+        if schedule.version > 1: schedule_element.setAttribute('version', str(schedule.version))
         schedule.created = schedule.created.replace(microsecond=0)
         schedule_element.setAttribute('creationTime', schedule.created.isoformat())
         if schedule.originator is not None:
@@ -196,7 +196,7 @@ def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
             programme_element = doc.createElement('programme')
             programme_element.setAttribute('shortId', str(programme.shortcrid))
             programme_element.setAttribute('id', str(programme.crid))
-            if programme.version is not None:
+            if programme.version > 1:
                 programme_element.setAttribute('version', str(programme.version))
             if programme.recommendation:
                 programme_element.setAttribute('recommendation', 'yes')
@@ -269,7 +269,7 @@ def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
     for grouping in info.groupings:
         grouping_element = doc.createElement('programmeGroups')
         epg_element.appendChild(grouping_element)
-        grouping_element.setAttribute('version', str(grouping.version))
+        if grouping.version > 1: grouping_element.setAttribute('version', str(grouping.version))
         created = grouping.created.replace(microsecond=0)
         grouping_element.setAttribute('creationTime', created.isoformat())
         if grouping.originator is not None:
@@ -280,7 +280,7 @@ def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
             group_element = doc.createElement('programmeGroup')
             group_element.setAttribute('id', str(group.crid))
             group_element.setAttribute('shortId', str(group.shortcrid))
-            if group.version is not None:
+            if group.version > 1:
                 group_element.setAttribute('version', str(group.version))
             if group.type is not None:
                 group_element.setAttribute('type', str(group.type))
@@ -379,12 +379,20 @@ def build_location(doc, location, listener):
             location_element.appendChild(time_element)
             time_element.setAttribute('time', time.billed_time.isoformat())
             time_element.setAttribute('duration', get_iso_period(time.billed_duration))
+            if time.actual_time:
+                time_element.setAttribute('actualTime', time.actual_time.isoformat())
+            if time.actual_duration:
+                time_element.setAttribute('actualDuration', get_iso_period(time.actual_duration)) 
             listener.on_element(doc, time, time_element)
         elif isinstance(time, RelativeTime):
             time_element = doc.createElement('relativeTime')
             location_element.appendChild(time_element)
             time_element.setAttribute('time', get_iso_period(time.billed_offset))
             time_element.setAttribute('duration', get_iso_period(time.billed_duration)) 
+            if time.actual_offset:
+                time_element.setAttribute('actualTime', get_iso_period(time.actual_offset))
+            if time.actual_duration:
+                time_element.setAttribute('actualDuration', get_iso_period(time.actual_duration)) 
             listener.on_element(doc, time, time_element)
     for bearer in location.bearers:
         bearer_element = build_bearer(doc, bearer, listener) 
@@ -452,7 +460,7 @@ def build_programme_event(doc, event, listener):
     event_element = doc.createElement('programmeEvent')
     event_element.setAttribute('shortId', str(event.shortcrid))
     event_element.setAttribute('id', str(event.crid))
-    if event.version is not None:
+    if event.version > 1:
         event_element.setAttribute('version', str(event.version))
     if event.recommendation is not False:
         event_element.setAttribute('recommendation', 'yes')
