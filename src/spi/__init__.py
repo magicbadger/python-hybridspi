@@ -1,7 +1,8 @@
 #===============================================================================
 # Python Hybrid Radio SPI - API to support ETSI TS 102 818
 # 
-# Copyright (C) 2015, Ben Poor
+# Copyright (C) 2010 Global Radio
+# Copyright (C) 2015 Ben Poor
 # 
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -174,7 +175,7 @@ class DigitalBearer(Bearer):
 
 class DabBearer(DigitalBearer):
 
-    def __init__(self, ecc, eid, sid, scids, xpad=None, cost=None, offset=None, bitrate=None, content=None):
+    def __init__(self, ecc, eid, sid, scids=0, xpad=None, cost=None, offset=None, bitrate=None, content=None):
 
         """
         DAB Service Bearer
@@ -223,7 +224,7 @@ class DabBearer(DigitalBearer):
         
         pattern = re.compile("^dab:(.{3})\.(.{4})\.(.{4})\.(.{1})[\.(.+?)]{0,1}$")
         matcher = pattern.search(string)
-        if not matcher: raise ValueError('ContentId %s does not match the pattern: %s' % (string, pattern.pattern))
+        if not matcher: raise ValueError('bearer %s does not match the pattern: %s' % (string, pattern.pattern))
         ecc = int(matcher.group(1)[1:], 16)
         eid = int(matcher.group(2), 16)
         sid = int(matcher.group(3), 16)
@@ -285,7 +286,7 @@ class FmBearer(Bearer):
         
         pattern = re.compile("fm:(.{3})\.(.{4})\.(.{5})")
         matcher = pattern.search(string)
-        if not matcher: raise ValueError('ContentId %s does not match the pattern: %s' % (string, pattern))
+        if not matcher: raise ValueError('bearer %s does not match the pattern: %s' % (string, pattern))
         ecc = int(matcher.group(1)[1:], 16)
         pi = int(matcher.group(2), 16)
         frequency = int(matcher.group(3)) * 10
@@ -324,43 +325,6 @@ class IpBearer(DigitalBearer):
     def __eq__(self, other):
         return str(self) == str(other)
  
-CRID_PATTERN = 'crid://([^\\/]+)/([^\\/]+)'
-        
-class Crid:
-   
-    def __init__(self, authority, data):
-        """
-        A unique identifier for a programme, programme event or programme group in the format
-        of a Content Reference ID as defined in the TV-Anytime specification. It is in the form
-        of
-        
-        ::
-        
-            crid://<authority>/data
-            
-        :param authority: Registered Internet domain name that the CRID author has 
-        permission to use
-        :type id: str
-        :param data: free format string that is meaningful to the given authority 
-        and should uniquely identify the content within that authority
-        :type id: str    
-        """
-        self.authority = authority
-        self.data = data
-        
-    @classmethod
-    def fromstring(cls, string):
-        """Parses a Crid from its string representation"""    
-        
-        pattern = re.compile(CRID_PATTERN)
-        matcher = pattern.search(string)
-        authority = matcher.group(1)
-        data = matcher.group(2)
-        return Crid(authority, data)
-        
-    def __str__(self):
-        return 'crid://%s/%s' % (self.authority, self.data)
-    
 class ProgrammeInfo:
     """The root of a PI document"""
     
@@ -489,9 +453,10 @@ class Membership:
     :type index: int    
     """
     
-    def __init__(self, shortcrid, crid, index=None):
-        self.shortcrid = shortcrid
+    def __init__(self, crid, shortcrid,index=None):
         self.crid = crid
+        if type(shortcrid) != int: raise ValueError('shortcrid must be an integer')
+        self.shortcrid = shortcrid
         self.index = index 
         
     def __str__(self):
@@ -549,6 +514,7 @@ class Programme(Named, Described):
         Named.__init__(self)
         Described.__init__(self)
         self.crid = crid
+        if type(shortcrid) != int: raise ValueError('shortcrid must be an integer')
         self.shortcrid = shortcrid
         self.version = version
         self.recommendation = recommendation
@@ -593,6 +559,7 @@ class ProgrammeEvent(Named, Described):
         Named.__init__(self)
         Described.__init__(self)
         self.crid = crid
+        if type(shortcrid) != int: raise ValueError('shortcrid must be an integer')
         self.shortcrid = shortcrid
         self.recommendation = recommendation
         self.version = version
@@ -615,7 +582,7 @@ class Schedule:
     Contains programmes within a given time period.
     """
     
-    def __init__(self, start, end, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
+    def __init__(self, start=None, end=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
         """
         :param start: Scope start time
         :type start: datetime
@@ -724,14 +691,14 @@ class ProgrammeGroup(Named, Described):
     OTHER_COLLECTION = "otherCollection"
     OTHER_CHOICE = "otherChoice"
     
-    def __init__(self, shortcrid, crid, type, numOfItems, version=1):
+    def __init__(self, crid, shortcrid, type, numOfItems, version=1):
         """
         Programme group container
 
+        :param crid: Full crid
+        :type crid: crid uri
         :param shortcrid: Short crid
         :type shortcrid: int
-        :param crid: Full crid
-        :type crid: :class:Crid
         :param type: Grouping type
         :type type: Programme group type
         :param numOfItems: Number of items in the group
@@ -741,10 +708,11 @@ class ProgrammeGroup(Named, Described):
         """
         Named.__init__(self)
         Described.__init__(self)
+        self.crid = crid
+        if type(shortcrid) != int: raise ValueError('shortcrid must be an integer')
         self.shortcrid = shortcrid
         self.type = type
         self.numOfItem = numOfItems
-        self.crid = crid
         self.version = version
         self.media = []
         self.genres = []
