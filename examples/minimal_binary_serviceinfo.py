@@ -40,6 +40,5 @@ service.lookup = 'http://capitalfm.com/london'
 info.services.append(service)
 
 ensemble = Ensemble(0xe1, 0xcfff)
-ensemble.frequencies.append(BAND_5A)
 
 print marshall(info, ensemble=ensemble)

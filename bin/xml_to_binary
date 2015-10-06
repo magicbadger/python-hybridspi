@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+
+"""
+Feed in an SI file URL and an ensemble and it will generate a directory named with the ensemble ID
+including a manifest, an encoded SI file covering only services on that Ensemble, and PI files for
+each service for the next 5 days
+"""
+
+import argparse
+import os, sys
+from datetime import datetime, timedelta
+import urllib2
+import logging
+from json import dumps, JSONEncoder
+
+parser = argparse.ArgumentParser(description='Decode a datagroup or packet bitstream into MOT objects')
+parser.add_argument('f',  nargs=1, help='SI document to encode from')
+parser.add_argument('-e', dest='ensemble', required=True, nargs=1, help='ensemble to encode')
+parser.add_argument('-o', dest='output', nargs=1, default='data', help='output directory')
+parser.add_argument('-X', dest='debug', action='store_true', help='turn debug on')
+args = parser.parse_args()
+
+if args.debug:
+    logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('xml_to_binary')
+
+# make sure we have an output directory
+d = args.output
+if not os.path.exists(d):
+    logger.debug('making output directory: %s', d)
+    os.makedirs(d)
+
+# read the SI 
+if 'http' in args.f:
+    f = urllib2.urlopen(args.f[0])
+else:
+    f = open(args.f[0])
+
+from spi import DabBearer, IpBearer, Time
+from spi.xml import unmarshall
+from spi.binary import marshall, Ensemble
+
+unmarshalled = unmarshall(f.read())
+
+ecc, eid = map(lambda n: int(n ,16), args.ensemble[0].split('.'))
+logger.debug('encoding xml for ensemble: %02x.%04x', ecc, eid)
+
+def ensemble_filter(service):
+    for bearer in service.bearers:
+        if isinstance(bearer, DabBearer) and bearer.ecc == ecc and bearer.eid == eid:
+            return True
+    return False
+
+def bearer_filter(service):
+    service.bearers = [x for x in service.bearers if isinstance(x, (DabBearer, IpBearer))]
+    return service
+
+# filter on selected services from the desired ensemble and DAB or IP bearers only
+unmarshalled.services = map(bearer_filter, unmarshalled.services)
+unmarshalled.services = filter(ensemble_filter, unmarshalled.services)
+
+# list of tuples: (filename, params, function, args, kwargs)
+jobs = []
+
+# log a job to encode the SI file
+jobs.append(("SI_%02x_%04x" % (ecc, eid), {"scopeid" : "dab:%02x.%04x" % (ecc, eid)}, marshall, [unmarshalled], {"ensemble" : Ensemble(ecc=ecc, eid=eid)}))
+
+def calculate_scope(schedule): # this should probably be in the main codebase
+    start, end = schedule.scope
+    if start is not None and end is not None: return (start, end)
+    if start is None:
+        for programme in schedule.programmes:
+            for location in programme.locations:
+                for time in location.times:
+                    if not isinstance(time, Time): continue
+                    if start is None or time.actual_time < start: start = time.actual_time
+                    if end is None or (time.actual_time + time.actual_duration) > end: end = (time.actual_time + time.actual_duration)
+    return (start, end)
+
+for service in unmarshalled.services:
+    from urlparse import urlparse
+    url = urlparse(service.lookup) 
+    fqdn = url.hostname
+    serviceIdentifier = url.path[1:]
+
+    try:
+        import srvlookup
+        logger.debug('looking for radioepg SRV record on domain: %s', fqdn)
+        srvs = srvlookup.lookup('radioepg', domain=fqdn)
+        srv = srvs[0]
+        logger.debug('found SRV record for domain %s : %s', fqdn, srv)
+    except Exception, e:
+        print >> sys.stderr, 'failure to find SRV record for %s: %s' % (fqdn, e)
+        continue
+
+    # get the service bearer on this ensemble
+    bearer = filter(lambda b: isinstance(b, DabBearer) and b.ecc == ecc and b.eid == eid, service.bearers)[0]
+
+    now = datetime.today()
+    # for each service, encode 5 days worth of PI
+    for i in range(0, 5):
+        day = now + timedelta(days=i)
+        url = 'http://%s/radiodns/spi/3.1/id/%s/%s/%s' % (srv.host, fqdn, serviceIdentifier, day.strftime("%Y%m%d_PI.xml"))
+        filename = '%s_PI_%04x' % (day.strftime("%Y%m%d"), bearer.sid)
+        logger.debug('making request for PI file to: %s', url)
+        f = urllib2.urlopen(url)
+        data = f.read()
+        logger.debug('read %d bytes', len(data))
+        programmeinfo = unmarshall(data)
+
+        # get the right scope - not entirely clear from the specification how multiple schedules should be handled
+        # in terms of scope signalling
+        scope_start = None
+        scope_end = None
+        for schedule in programmeinfo.schedules:
+            start, end = schedule.scope
+            if scope_start == None or start < scope_start: scope_start = start
+            if scope_end == None or end > scope_end: scope_start = start
+            start, end = calculate_scope(schedule)
+            if scope_start == None or start < scope_start: scope_start = start
+            if scope_end == None or end > scope_end: scope_end = end
+
+        jobs.append((filename, {"scopeid" : "dab:%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
+                                "scopestart" : scope_start,
+                                "scopeend" : scope_end
+                               }, marshall, [programmeinfo], {}))
+        
+# now perform the jobs 
+manifest = {"entries": []}
+for job in jobs:
+    filename, params, func, args, kwargs = job
+    logger.debug('opening output file at: %s', os.path.join(d, filename))
+    f = open(os.path.join(d, filename), 'wb')
+    logger.debug('creating data from function: %s, args=%s, kwargs=%s', func, args, kwargs)
+    r = func(*args, **kwargs)
+    f.write(r)
+    f.close()
+    entry = {"contentname": filename, "path": os.path.join(d, filename)}
+    entry.update(params)
+    manifest['entries'].append(entry)
+
+# write the manifest
+class Encoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return str(obj)
+    
+f = open(os.path.join(d, "manifest.json"), "w")
+f.write(dumps(manifest, cls=Encoder))
+f.close()
+
+    
+
+#from spi.binary import unmarshall 
+#print unmarshall(binary)
+#print binary

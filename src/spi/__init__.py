@@ -325,11 +325,12 @@ class IpBearer(DigitalBearer):
     def __eq__(self, other):
         return str(self) == str(other)
  
+
 class ProgrammeInfo:
     """The root of a PI document"""
     
-    def __init__(self):
-        self.schedules = []
+    def __init__(self, schedules=[]):
+        self.schedules = schedules
     
 class Link:
     """
@@ -481,9 +482,7 @@ class Multimedia:
     """
     
     LOGO_UNRESTRICTED ="logo_unrestricted"    
-    LOGO_MONO_SQUARE = "logo_mono_square"
     LOGO_COLOUR_SQUARE = "logo_colour_square"
-    LOGO_MONO_RECTANGLE = "logo_mono_rectangle"
     LOGO_COLOUR_RECTANGLE = "logo_colour_rectangle"
     
     def __init__(self, url, type=LOGO_UNRESTRICTED, content=None, height=None, width=None, locale=locale.getdefaultlocale()):
@@ -494,8 +493,7 @@ class Multimedia:
         self.width = width
         if type == Multimedia.LOGO_UNRESTRICTED and (not height or not width or not content):
             raise ValueError('an unrestricted logo must have height, width and content type defined') 
-        elif type != Multimedia.LOGO_UNRESTRICTED and (height or width):
-            raise ValueError('should not specify width or height when type is restricted')    
+        self.locale = locale
         
 class Programme(Named, Described):
     """Describes and locates a programme.
@@ -514,8 +512,7 @@ class Programme(Named, Described):
         Named.__init__(self)
         Described.__init__(self)
         self.crid = crid
-        if type(shortcrid) != int: raise ValueError('shortcrid must be an integer')
-        self.shortcrid = shortcrid
+        self.shortcrid = int(shortcrid)
         self.version = version
         self.recommendation = recommendation
         self.locations = []
@@ -595,8 +592,6 @@ class Schedule:
         :param originator: Originator of the schedule
         :type originator: string
         """
-        self.start = start
-        self.end = end
         self.created = created
         self.version = version
         self.originator = originator

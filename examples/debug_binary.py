@@ -6,6 +6,7 @@ from collections import OrderedDict as od
 from asciitree import LeftAligned
 from asciitree.traversal import Traversal, AttributeTraversal
 
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('binary_decoder')
 
 def usage():

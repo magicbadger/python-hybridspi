@@ -23,12 +23,15 @@ import xml.dom.minidom
 import isodate
 from xml.dom import XML_NAMESPACE
 from urlparse import urlparse
+import logging
 
 SCHEMA_NS = 'http://www.worlddab.org/schemas/spi/31'
 SCHEMA_XSD = 'spi_31.xsd'
 XSI_NS = 'http://www.w3.org/2001/XMLSchema-instance'
 
 namespaces = { "spi" : SCHEMA_NS }
+
+logger = logging.getLogger('spi.xml')
 
 class MarshallListener:
     
@@ -502,6 +505,7 @@ def get_schedule_filename(date, id):
     return '%s_%02x_%04x_%04x_%x_PI.xml' % (date.strftime('%Y%m%d'), id.ecc, id.eid, id.sid, id.scids)
 
 def parse_serviceinfo(root):
+    logger.debug('parsing service information')
     info = ServiceInfo()
     if root.attrib.has_key('creationTime'): info.created = isodate.parse_datetime(root.attrib['creationTime'])
     if root.attrib.has_key('version'): info.version = int(root.attrib['version'])
@@ -569,7 +573,16 @@ def parse_programme_event(programmeEventElement):
     for nameElement in programmeEventElement.findall("spi:shortName", namespaces): event.names.append(parse_name(nameElement))
     for nameElement in programmeEventElement.findall("spi:mediumName", namespaces): event.names.append(parse_name(nameElement))
     for nameElement in programmeEventElement.findall("spi:longName", namespaces): event.names.append(parse_name(nameElement))
-    for mediaElement in programmeEventElement.findall("spi:mediaDescription", namespaces): event.media.extend(parse_media(mediaElement))
+
+    # media
+    for media_element in programmeEventElement.findall("spi:mediaDescription", namespaces):
+        for child in media_element.findall("spi:multimedia", namespaces):
+            event.media.append(parse_multimedia(child))
+        for child in media_element.findall("spi:shortDescription", namespaces):
+            event.descriptions.append(parse_description(child))
+        for child in media_element.findall("spi:longDescription", namespaces):
+            event.descriptions.append(parse_description(child))
+
     for locationElement in programmeEventElement.findall("spi:location", namespaces): event.locations.append(parse_location(locationElement))
     for genreElement in programmeEventElement.findall("spi:genre", namespaces): event.genres.append(parse_genre(genreElement))
     for linkElement in programmeEventElement.findall("spi:link", namespaces): event.links.append(parse_link(linkElement))
@@ -578,8 +591,7 @@ def parse_programme_event(programmeEventElement):
     return event
 
 def parse_programme(programmeElement):
-    programme = Programme(programmeElement.attrib['shortId'])
-    if programmeElement.attrib.has_key('id'): programme.crid = programmeElement.attrib['id']
+    programme = Programme(programmeElement.attrib['id'], programmeElement.attrib['shortId'])
     if programmeElement.attrib.has_key('version'): programme.version = int(programmeElement.attrib['version'])
     if programmeElement.attrib.has_key('recommendation'): programme.recommendation = bool(programmeElement.attrib['recommendation'])
     if programmeElement.attrib.has_key('broadcast'): programme.onair = True if programmeElement.attrib['broadcast'] == 'on-air' else False
@@ -588,7 +600,16 @@ def parse_programme(programmeElement):
     for nameElement in programmeElement.findall("spi:shortName", namespaces): programme.names.append(parse_name(nameElement))
     for nameElement in programmeElement.findall("spi:mediumName", namespaces): programme.names.append(parse_name(nameElement))
     for nameElement in programmeElement.findall("spi:longName", namespaces): programme.names.append(parse_name(nameElement))
-    for mediaElement in programmeElement.findall("spi:mediaDescription", namespaces): programme.media.extend(parse_media(mediaElement))
+
+    # media
+    for media_element in programmeElement.findall("spi:mediaDescription", namespaces):
+        for child in media_element.findall("spi:multimedia", namespaces):
+            programme.media.append(parse_multimedia(child))
+        for child in media_element.findall("spi:shortDescription", namespaces):
+            programme.descriptions.append(parse_description(child))
+        for child in media_element.findall("spi:longDescription", namespaces):
+            programme.descriptions.append(parse_description(child))
+
     for locationElement in programmeElement.findall("spi:location", namespaces): programme.locations.append(parse_location(locationElement))
     for genreElement in programmeElement.findall("spi:genre", namespaces): programme.genres.append(parse_genre(genreElement))
     for linkElement in programmeElement.findall("spi:link", namespaces): programme.links.append(parse_link(linkElement))
@@ -609,6 +630,7 @@ def parse_schedule(scheduleElement):
     return schedule
 
 def parse_programmeinfo(root):
+    logger.debug('parsing programme info from root: %s', root)
     schedules = []
     for schedule_element in root.findall('spi:schedule', namespaces):
         schedule = parse_schedule(schedule_element)
@@ -643,8 +665,6 @@ def parse_multimedia(mediaElement):
         type_str = mediaElement.attrib['type']
         if type_str == 'logo_colour_square': type = Multimedia.LOGO_COLOUR_SQUARE
         if type_str == 'logo_colour_rectangle': type = Multimedia.LOGO_COLOUR_RECTANGLE
-        if type_str == 'logo_mono_rectangle': type = Multimedia.LOGO_MONO_RECTANGLE
-        if type_str == 'logo_mono_square': type = Multimedia.LOGO_MONO_SQUARE
         if type_str == 'logo_unrestricted': 
             type = Multimedia.LOGO_UNRESTRICTED
             if not mediaElement.attrib.has_key('mimeValue') or not mediaElement.attrib.has_key('width') or not mediaElement.attrib.has_key('height'):
@@ -652,17 +672,10 @@ def parse_multimedia(mediaElement):
     if mediaElement.attrib.has_key('mimeValue'): mime = mediaElement.attrib['mimeValue']
     if mediaElement.attrib.has_key('width'): width = int(mediaElement.attrib['width'])
     if mediaElement.attrib.has_key('height'): height = int(mediaElement.attrib['height'])
-    
+        
     multimedia = Multimedia(mediaElement.attrib['url'], type=type, content=mime, height=height, width=width)
     return multimedia      
     
-def parse_media(mediaElement):
-    media = []
-    for descriptionElement in mediaElement.findall("spi:shortDescription", namespaces): media.append(parse_description(descriptionElement))    
-    for descriptionElement in mediaElement.findall("spi:longDescription", namespaces): media.append(parse_description(descriptionElement)) 
-    for multimediaElement in mediaElement.findall("spi:multimedia", namespaces): media.append(parse_multimedia(multimediaElement))
-    return media
-
 def parse_genre(genreElement):
     genre = Genre(genreElement.attrib['href'])
     genre.name = genreElement.text
@@ -701,12 +714,12 @@ def parse_service(service_element):
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
-        if media_element.find('multimedia') is None:
-            for child in media_element:
-                service.media.append(parse_media(child))
-        else:
-            for child in media_element:
-                service.descriptions.append(parse_description(child))
+        for child in media_element.findall("spi:multimedia", namespaces):
+            service.media.append(parse_multimedia(child))
+        for child in media_element.findall("spi:shortDescription", namespaces):
+            service.descriptions.append(parse_description(child))
+        for child in media_element.findall("spi:longDescription", namespaces):
+            service.descriptions.append(parse_description(child))
 
     # genres
     for child in service_element.findall("spi:genre", namespaces): 
@@ -719,6 +732,10 @@ def parse_service(service_element):
     # keywords
     for child in service_element.findall("spi:keywords", namespaces): 
         service.keywords.extend(parse_keywords(child))
+
+    # lookup
+    for child in service_element.findall("spi:radiodns", namespaces):
+        service.lookup = 'http://%s/%s' % (child.attrib['fqdn'], child.attrib['serviceIdentifier'])
     
     return service
 
@@ -746,16 +763,20 @@ def unmarshall(i):
     import StringIO
     d = i if isinstance(i, file) else StringIO.StringIO(i)
     from xml.etree.ElementTree import parse 
+    logger.debug('parsing XML data from: %s', d)
     doc = parse(d)
     root = doc.getroot()
+    logger.debug('got root element: %s', root)
     
     if root.tag == '{%s}serviceInformation' % SCHEMA_NS:
         return parse_serviceinfo(root)
     elif root.tag == '{%s}epg' % SCHEMA_NS:
-        if len(root.getElementsByTagNameNS(SCHEMA_NS, 'schedule')):
+        if len(root.findall("spi:schedule", namespaces)):
             return parse_programmeinfo(root)
-        if len(root.getElementsByTagNameNS(SCHEMA_NS, 'programmeGroups')):
+        if len(root.findall("spi:programmeGroups", namespaces)):
             return parse_groupinfo(root)
+        else:
+            raise Exception('epg element does not contain either schedules or programme groups')
     else:
         raise Exception('Arrgh! this be neither serviceInformation nor epg - to Davy Jones\' locker with ye!')   
     
