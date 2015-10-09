@@ -26,22 +26,22 @@ from spi.binary.bands import *
 import datetime
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 info = ServiceInfo(originator='Global Radio', 
                    provider='Global Radio', 
                    created=datetime.datetime(2014, 04, 25, 0, 50, 31, 0))
 
 # Ensemble
-ensemble = Ensemble(0xe1, 0xcfff)
-ensemble.names.append(ShortName('Test Mux'))
-ensemble.names.append(MediumName('Test Mux'))
-ensemble.frequencies.append(BAND_9A)
+ensemble = Ensemble(0xe1, 0xc479)
+ensemble.names.append(ShortName('London 1'))
+ensemble.names.append(MediumName('London 1'))
+ensemble.frequencies.append(BAND_12C)
 
 # Capital London 
 service = Service()
 service.names.append(ShortName('Capital'))
-service.names.append(MediumName('Capital FM'))
+service.names.append(MediumName('Capital'))
 service.names.append(LongName('Capital London'))
 service.descriptions.append(ShortDescription('The UK\'s No.1 Hit Music Station'))
 service.media.append(Multimedia('http://owdo.thisisglobal.com/2.0/id/25/logo/32x32.png',

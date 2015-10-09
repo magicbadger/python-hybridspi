@@ -63,7 +63,7 @@ unmarshalled.services = filter(ensemble_filter, unmarshalled.services)
 jobs = []
 
 # log a job to encode the SI file
-jobs.append(("SI_%02x_%04x" % (ecc, eid), {"scopeid" : "dab:%02x.%04x" % (ecc, eid)}, marshall, [unmarshalled], {"ensemble" : Ensemble(ecc=ecc, eid=eid)}))
+jobs.append(("SI_%02x_%04x" % (ecc, eid), {"scopeid" : "%02x.%04x" % (ecc, eid)}, marshall, [unmarshalled], {"ensemble" : Ensemble(ecc=ecc, eid=eid)}))
 
 def calculate_scope(schedule): # this should probably be in the main codebase
     start, end = schedule.scope
@@ -120,7 +120,7 @@ for service in unmarshalled.services:
             if scope_start == None or start < scope_start: scope_start = start
             if scope_end == None or end > scope_end: scope_end = end
 
-        jobs.append((filename, {"scopeid" : "dab:%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
+        jobs.append((filename, {"scopeid" : "%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
                                 "scopestart" : scope_start,
                                 "scopeend" : scope_end
                                }, marshall, [programmeinfo], {}))
@@ -135,7 +135,7 @@ for job in jobs:
     r = func(*args, **kwargs)
     f.write(r)
     f.close()
-    entry = {"contentname": filename, "path": os.path.join(d, filename)}
+    entry = {"contentname": filename, "path": filename}
     entry.update(params)
     manifest['entries'].append(entry)
 
