@@ -12,17 +12,21 @@ from datetime import datetime, timedelta
 import urllib2
 import logging
 from json import dumps, JSONEncoder
+import random
+import string
 
-parser = argparse.ArgumentParser(description='Decode a datagroup or packet bitstream into MOT objects')
+parser = argparse.ArgumentParser(description='Encode an SI url into binary encoded representation')
 parser.add_argument('f',  nargs=1, help='SI document to encode from')
 parser.add_argument('-e', dest='ensemble', required=True, nargs=1, help='ensemble to encode')
 parser.add_argument('-o', dest='output', nargs=1, default='data', help='output directory')
 parser.add_argument('-X', dest='debug', action='store_true', help='turn debug on')
+parser.add_argument('-d', dest='days', nargs=1, type=int, default=0, help='number of days ahead to encode schedule files')
 args = parser.parse_args()
 
 if args.debug:
     logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('xml_to_binary')
+logging.getLogger('spi.binary').setLevel(logging.INFO)
 
 # make sure we have an output directory
 d = args.output
@@ -62,8 +66,34 @@ unmarshalled.services = filter(ensemble_filter, unmarshalled.services)
 # list of tuples: (filename, params, function, args, kwargs)
 jobs = []
 
-# log a job to encode the SI file
-jobs.append(("SI_%02x_%04x" % (ecc, eid), {"scopeid" : "%02x.%04x" % (ecc, eid)}, marshall, [unmarshalled], {"ensemble" : Ensemble(ecc=ecc, eid=eid)}))
+def get_filename():
+    return ''.join(random.choice(string.ascii_lowercase) for i in range(6))
+
+def encode_image(service, filename, media):
+    logger.debug('encoding image from %s to local file %s', media.url, filename)
+    service.media.append(Multimedia(filename, media.type, media.content, media.height, media.width))
+    response = urllib2.urlopen(media.url)
+    data = response.read()
+    logger.debug('read %d bytes of image data', len(data))
+    return data
+
+# encode service logos
+for service in unmarshalled.services:
+    from spi import Multimedia
+    for media in filter(lambda m: 
+        m.type in (Multimedia.LOGO_COLOUR_SQUARE, Multimedia.LOGO_COLOUR_RECTANGLE) or
+        (m.content in ('image/png', 'image/jpg', 'image/jpeg') and
+         (m.width, m.height) in ((32, 32), (112, 112), (128, 128), (320, 240))),
+        service.media):
+        filename = get_filename()
+        jobs.append((filename, {"type" : "2/3" if media.content == 'image/png' or media.type in (Multimedia.LOGO_COLOUR_SQUARE, Multimedia.LOGO_COLOUR_RECTANGLE) else "2/1"},
+        encode_image, [service, filename, media], {})) 
+
+# encode the SI file 
+jobs.append((get_filename(), 
+    {"scopeid" : "%02x.%04x" % (ecc, eid), "type" : "7/0"}, 
+    marshall, [unmarshalled], 
+    {"ensemble" : Ensemble(ecc=ecc, eid=eid)}))
 
 def calculate_scope(schedule): # this should probably be in the main codebase
     start, end = schedule.scope
@@ -77,54 +107,55 @@ def calculate_scope(schedule): # this should probably be in the main codebase
                     if end is None or (time.actual_time + time.actual_duration) > end: end = (time.actual_time + time.actual_duration)
     return (start, end)
 
-for service in unmarshalled.services:
-    from urlparse import urlparse
-    url = urlparse(service.lookup) 
-    fqdn = url.hostname
-    serviceIdentifier = url.path[1:]
+if args.days > 0:
+    for service in unmarshalled.services:
+        from urlparse import urlparse
+        url = urlparse(service.lookup) 
+        fqdn = url.hostname
+        serviceIdentifier = url.path[1:]
 
-    try:
-        import srvlookup
-        logger.debug('looking for radioepg SRV record on domain: %s', fqdn)
-        srvs = srvlookup.lookup('radioepg', domain=fqdn)
-        srv = srvs[0]
-        logger.debug('found SRV record for domain %s : %s', fqdn, srv)
-    except Exception, e:
-        print >> sys.stderr, 'failure to find SRV record for %s: %s' % (fqdn, e)
-        continue
+        try:
+            import srvlookup
+            logger.debug('looking for radioepg SRV record on domain: %s', fqdn)
+            srvs = srvlookup.lookup('radioepg', domain=fqdn)
+            srv = srvs[0]
+            logger.debug('found SRV record for domain %s : %s', fqdn, srv)
+        except Exception, e:
+            print >> sys.stderr, 'failure to find SRV record for %s: %s' % (fqdn, e)
+            continue
 
-    # get the service bearer on this ensemble
-    bearer = filter(lambda b: isinstance(b, DabBearer) and b.ecc == ecc and b.eid == eid, service.bearers)[0]
+        # get the service bearer on this ensemble
+        bearer = filter(lambda b: isinstance(b, DabBearer) and b.ecc == ecc and b.eid == eid, service.bearers)[0]
 
-    now = datetime.today()
-    # for each service, encode 5 days worth of PI
-    for i in range(0, 5):
-        day = now + timedelta(days=i)
-        url = 'http://%s/radiodns/spi/3.1/id/%s/%s/%s' % (srv.host, fqdn, serviceIdentifier, day.strftime("%Y%m%d_PI.xml"))
-        filename = '%s_PI_%04x' % (day.strftime("%Y%m%d"), bearer.sid)
-        logger.debug('making request for PI file to: %s', url)
-        f = urllib2.urlopen(url)
-        data = f.read()
-        logger.debug('read %d bytes', len(data))
-        programmeinfo = unmarshall(data)
+        now = datetime.today()
+        # for each service, encode 5 days worth of PI
+        for i in range(0, 5):
+            day = now + timedelta(days=i)
+            url = 'http://%s/radiodns/spi/3.1/id/%s/%s/%s' % (srv.host, fqdn, serviceIdentifier, day.strftime("%Y%m%d_PI.xml"))
+            filename = '%s_PI_%04x' % (day.strftime("%Y%m%d"), bearer.sid)
+            logger.debug('making request for PI file to: %s', url)
+            f = urllib2.urlopen(url)
+            data = f.read()
+            logger.debug('read %d bytes', len(data))
+            programmeinfo = unmarshall(data)
 
-        # get the right scope - not entirely clear from the specification how multiple schedules should be handled
-        # in terms of scope signalling
-        scope_start = None
-        scope_end = None
-        for schedule in programmeinfo.schedules:
-            start, end = schedule.scope
-            if scope_start == None or start < scope_start: scope_start = start
-            if scope_end == None or end > scope_end: scope_start = start
-            start, end = calculate_scope(schedule)
-            if scope_start == None or start < scope_start: scope_start = start
-            if scope_end == None or end > scope_end: scope_end = end
+            # get the right scope - not entirely clear from the specification how multiple schedules should be handled
+            # in terms of scope signalling
+            scope_start = None
+            scope_end = None
+            for schedule in programmeinfo.schedules:
+                start, end = schedule.scope
+                if scope_start == None or start < scope_start: scope_start = start
+                if scope_end == None or end > scope_end: scope_start = start
+                start, end = calculate_scope(schedule)
+                if scope_start == None or start < scope_start: scope_start = start
+                if scope_end == None or end > scope_end: scope_end = end
 
-        jobs.append((filename, {"scopeid" : "%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
-                                "scopestart" : scope_start,
-                                "scopeend" : scope_end
-                               }, marshall, [programmeinfo], {}))
-        
+            jobs.append((filename, {"scopeid" : "%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
+                                    "scopestart" : scope_start,
+                                    "scopeend" : scope_end
+                                   }, marshall, [programmeinfo], {}))
+            
 # now perform the jobs 
 manifest = {"entries": []}
 for job in jobs:

@@ -1,0 +1,36 @@
+#!/usr/bin/env python
+
+from mot import MotObject, ContentType
+from msc.datagroups import *
+from msc.packets import *
+from bitarray import bitarray
+from json import load
+import os, sys
+from mot.epg import ScopeId
+
+# first argument is path, which should contain manifest.json and all the object files
+args = sys.argv[1:]
+path = os.path.abspath(args[0])
+json = load(file(os.path.join(path, 'manifest.json')))
+
+objects = []
+for entry in json['entries']:
+    data = file(os.path.join(path, entry['path'])).read()
+
+    # create MOT object
+    object = MotObject(entry['contentname'], data, ContentType(*map(lambda x: int(x), entry['type'].split('/'))))
+
+    # add additional parameters (TODO - extend to being pluggable)
+    if entry.has_key('scopeid'):
+        object.add_parameter(ScopeId(*map(lambda x: int(x, 16), entry['scopeid'].split('.'))))
+
+    objects.append(object)
+        
+# encode to datagroups
+datagroups = encode_directorymode(objects)
+        
+# encode to packets
+packets = encode_packets(datagroups, 1, Packet.SIZE_96)
+        
+for packet in packets:
+    sys.stdout.write(packet.tobytes())
