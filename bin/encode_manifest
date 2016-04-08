@@ -7,10 +7,24 @@ from bitarray import bitarray
 from json import load
 import os, sys
 from mot.epg import ScopeId
+import argparse
 
 # first argument is path, which should contain manifest.json and all the object files
-args = sys.argv[1:]
-path = os.path.abspath(args[0])
+parser = argparse.ArgumentParser(description='Encode a manifest to an encoded MOT directory bitstream')
+parser.add_argument('f',  nargs=1, help='Manifest and data path (manifest should be manifest.json)')
+parser.add_argument('-o', dest='output', nargs=1, help='output file path, defaults to stdout')
+parser.add_argument('-X', dest='debug', action='store_true', help='turn debug on')
+parser.add_argument('-p', dest='packets', action='store_true', help='encode to packets')
+parser.add_argument('-a', dest='packetaddress', type=int, nargs='?', default=1, help='packet address')
+parser.add_argument('-s', dest='packetsize', type=int, nargs='?', default=96, help='packet size')
+args = parser.parse_args()
+
+if args.debug:
+    logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('encode manifest')
+
+# load the file
+path = args.f[0]
 json = load(file(os.path.join(path, 'manifest.json')))
 
 objects = []
@@ -23,14 +37,22 @@ for entry in json['entries']:
     # add additional parameters (TODO - extend to being pluggable)
     if entry.has_key('scopeid'):
         object.add_parameter(ScopeId(*map(lambda x: int(x, 16), entry['scopeid'].split('.'))))
+    if entry.has_key('mimetype'):
+        object.add_parameter(MimeType(entry['scopeid']))
 
     objects.append(object)
         
 # encode to datagroups
-datagroups = encode_directorymode(objects)
+f = encode_directorymode(objects)
         
 # encode to packets
-packets = encode_packets(datagroups, 1, Packet.SIZE_96)
+if args.packets:
+    f = encode_packets(f, args.packetaddress, args.packetsize)
         
-for packet in packets:
-    sys.stdout.write(packet.tobytes())
+# output
+out = sys.stdout
+if args.output is not None:
+    out = open(args.output[0], 'wb')
+for x in f:
+    out.write(x.tobytes())
+out.close()

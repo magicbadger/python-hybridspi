@@ -14,6 +14,7 @@ import logging
 from json import dumps, JSONEncoder
 import random
 import string
+import re
 
 parser = argparse.ArgumentParser(description='Encode an SI url into binary encoded representation')
 parser.add_argument('f',  nargs=1, help='SI document to encode from')
@@ -46,7 +47,14 @@ from spi.binary import marshall, Ensemble
 
 unmarshalled = unmarshall(f.read())
 
-ecc, eid = map(lambda n: int(n ,16), args.ensemble[0].split('.'))
+# parse ensemble
+p = re.compile('(.{2})\.(.{4})')
+m = p.match(args.ensemble[0])
+if not m: 
+    logger.error('ensemble cannot be parsed: %s', args.ensemble[0])
+    sys.exit(1)
+    
+ecc, eid = map(lambda n: int(n ,16), [m.group(1), m.group(2)])
 logger.debug('encoding xml for ensemble: %02x.%04x', ecc, eid)
 
 def ensemble_filter(service):
@@ -69,9 +77,8 @@ jobs = []
 def get_filename():
     return ''.join(random.choice(string.ascii_lowercase) for i in range(6))
 
-def encode_image(service, filename, media):
+def encode_image(filename, media):
     logger.debug('encoding image from %s to local file %s', media.url, filename)
-    service.media.append(Multimedia(filename, media.type, media.content, media.height, media.width))
     response = urllib2.urlopen(media.url)
     data = response.read()
     logger.debug('read %d bytes of image data', len(data))
@@ -83,15 +90,19 @@ for service in unmarshalled.services:
     for media in filter(lambda m: 
         m.type in (Multimedia.LOGO_COLOUR_SQUARE, Multimedia.LOGO_COLOUR_RECTANGLE) or
         (m.content in ('image/png', 'image/jpg', 'image/jpeg') and
-         (m.width, m.height) in ((32, 32), (112, 112), (128, 128), (320, 240))),
+         (m.width, m.height) in ((32, 32), (112, 32), (128, 128))), 
         service.media):
-        filename = get_filename()
-        jobs.append((filename, {"type" : "2/3" if media.content == 'image/png' or media.type in (Multimedia.LOGO_COLOUR_SQUARE, Multimedia.LOGO_COLOUR_RECTANGLE) else "2/1"},
-        encode_image, [service, filename, media], {})) 
+        filename = get_filename() 
+        jobs.append((filename, 
+                    {"contentname" : media.url, 
+                     "type" : "2/3" if media.content == 'image/png' or media.type in (Multimedia.LOGO_COLOUR_SQUARE, Multimedia.LOGO_COLOUR_RECTANGLE) else "2/1"},
+                    encode_image, [filename, media], {})) 
 
 # encode the SI file 
 jobs.append((get_filename(), 
-    {"scopeid" : "%02x.%04x" % (ecc, eid), "type" : "7/0"}, 
+    {"contentname" : "si.xml",
+     "scopeid" : "%02x.%04x" % (ecc, eid), 
+     "type" : "7/0"}, 
     marshall, [unmarshalled], 
     {"ensemble" : Ensemble(ecc=ecc, eid=eid)}))
 
@@ -151,7 +162,8 @@ if args.days > 0:
                 if scope_start == None or start < scope_start: scope_start = start
                 if scope_end == None or end > scope_end: scope_end = end
 
-            jobs.append((filename, {"scopeid" : "%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
+            jobs.append((filename, {"contentname" : filename,
+                                    "scopeid" : "%02x.%04x.%04x.%x" % (bearer.ecc, bearer.eid, bearer.sid, bearer.scids), 
                                     "scopestart" : scope_start,
                                     "scopeend" : scope_end
                                    }, marshall, [programmeinfo], {}))
@@ -159,16 +171,19 @@ if args.days > 0:
 # now perform the jobs 
 manifest = {"entries": []}
 for job in jobs:
-    filename, params, func, args, kwargs = job
-    logger.debug('opening output file at: %s', os.path.join(d, filename))
-    f = open(os.path.join(d, filename), 'wb')
-    logger.debug('creating data from function: %s, args=%s, kwargs=%s', func, args, kwargs)
-    r = func(*args, **kwargs)
-    f.write(r)
-    f.close()
-    entry = {"contentname": filename, "path": filename}
-    entry.update(params)
-    manifest['entries'].append(entry)
+    try:
+        filename, params, func, args, kwargs = job
+        logger.debug('opening output file at: %s', os.path.join(d, filename))
+        f = open(os.path.join(d, filename), 'wb')
+        logger.debug('creating data from function: %s, args=%s, kwargs=%s', func, args, kwargs)
+        r = func(*args, **kwargs)
+        f.write(r)
+        f.close()
+        entry = {"path": filename}
+        entry.update(params)
+        manifest['entries'].append(entry)
+    except:
+        logger.error('error running job: %s', job)
 
 # write the manifest
 class Encoder(JSONEncoder):
@@ -178,7 +193,7 @@ class Encoder(JSONEncoder):
         return str(obj)
     
 f = open(os.path.join(d, "manifest.json"), "w")
-f.write(dumps(manifest, cls=Encoder))
+f.write(dumps(manifest, cls=Encoder, indent=4))
 f.close()
 
     
