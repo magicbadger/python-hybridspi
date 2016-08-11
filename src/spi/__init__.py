@@ -213,7 +213,7 @@ class DabBearer(DigitalBearer):
         if not isinstance(ecc, int): raise ValueError("ECC must be an integer")
         if not isinstance(eid, int): raise ValueError("EId must be an integer")
         if not isinstance(sid, int): raise ValueError("SId must be an integer")
-        if not isinstance(scids, int): raise ValueError("SCIdS must be an integer")
+        if not isinstance(scids, (int, long)): raise ValueError("SCIdS must be an number")
         if xpad and not isinstance(xpad, int): raise ValueError("XPAD AppType must be an integer")
         
     @classmethod
