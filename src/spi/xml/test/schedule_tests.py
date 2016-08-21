@@ -20,7 +20,7 @@
 
 import unittest
 
-from dabepg import *
+from spi import *
 
 
 class Test(unittest.TestCase):

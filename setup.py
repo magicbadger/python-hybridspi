@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='python-hybridspi',
-      version='1.0.0',
+      version='0.1.0',
       description='Hybrid Radio SPI implementation (ETSI TS 102 818 v3.1.1, ETSI TS 102 371 v.3.1.1)',
       author='Ben Poor',
       author_email='magicbadger@gmail.com',
