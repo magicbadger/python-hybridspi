@@ -425,7 +425,7 @@ def encode_timepoint(timepoint):
     y = timepoint.year + 4800 - a
     m = timepoint.month + (12 * a) - 3
     jdn = timepoint.day + ((153 * m) + 2) / 5 + (365 * y) + (y / 4) - (y / 100) + (y / 400) - 32045
-    jd = jdn + (timepoint.hour - 12) / 24 + timepoint.minute / 1440 + timepoint.second / 86400
+    jd = jdn + timepoint.hour / 24 + timepoint.minute / 1440 + timepoint.second / 86400
     mjd = (int)(jd - 2400000.5)
     bits += encode_number(mjd, 17)
         
