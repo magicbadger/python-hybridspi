@@ -26,6 +26,7 @@ import math
 import datetime, dateutil.tz
 import logging
 import sys
+from datetime import timedelta
 
 logger = logging.getLogger("spi.binary")
 
@@ -417,6 +418,8 @@ def encode_timepoint(timepoint):
     
     bits = bitarray(1)
     bits.setall(False)
+    offset = (timepoint.utcoffset().days * 86400 + timepoint.utcoffset().seconds) + (timepoint.dst().days * 86400 + timepoint.dst().days)
+    timepoint = timepoint - timedelta(seconds=offset)
     
     # b0: RFA(0)
         
@@ -454,7 +457,6 @@ def encode_timepoint(timepoint):
     # b32/48: LTO
     if bits[19]:
         bits += bitarray('00') # b49-50: RFA(0)
-        offset = (timepoint.utcoffset().days * 86400 + timepoint.utcoffset().seconds) + (timepoint.dst().days * 86400 + timepoint.dst().days)
         bits += bitarray('0' if offset > 0 else '1') # b51: LTO sign
         bits += encode_number(offset / (60 * 60) * 2, 5) # b52-56: Half hours
             
