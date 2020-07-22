@@ -672,7 +672,7 @@ class CData:
             bits += tmp
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.frombytes'\xfe')
+            tmp.frombytes('\xfe')
             bits += tmp
             tmp = encode_number(datalength, 16)
             bits += tmp
