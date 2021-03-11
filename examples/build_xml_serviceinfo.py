@@ -40,7 +40,7 @@ provider.geolocations.append(Point(51.473939, -2.508112))
 
 info = ServiceInfo(originator='Global Radio', 
                    provider=provider, 
-                   created=datetime.datetime(2014, 04, 25, 0, 50, 31, 0))
+                   created=datetime.datetime(2014, 0o4, 25, 0, 50, 31, 0))
 
 # Capital London 
 service = Service()
@@ -115,4 +115,4 @@ group.services.append(service)
 info.groups.append(group)
 
 
-print marshall(info, indent='\t')
+print(marshall(info))

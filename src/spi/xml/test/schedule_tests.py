@@ -54,9 +54,9 @@ class Test(unittest.TestCase):
         
         from dabepg.xml import marshall as marshall_xml
         from dabepg.binary import marshall as marshall_binary
-        print marshall_xml(epg, indent='   ')
+        print(marshall_xml(epg, indent='   '))
         
-        print marshall_binary(epg)
+        print(marshall_binary(epg))
     
 
 if __name__ == "__main__":

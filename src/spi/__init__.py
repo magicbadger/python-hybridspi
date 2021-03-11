@@ -31,7 +31,7 @@ class Text:
     """Abstract class for textual information"""
     
     def __init__(self, text, max_length, locale=locale.getdefaultlocale()):
-        if not isinstance(text, basestring): raise ValueError('text must be of a basestring subtype, not %s: %s', type(text), text)
+        if not isinstance(text, str): raise ValueError('text must be of a basestring subtype, not %s: %s', type(text), text)
         if len(text) > max_length: raise ValueError('text length exceeds the maximum: %d>%d' % (len(text), max_length))
         self.max_length = max_length
         self.text = text
@@ -213,7 +213,7 @@ class DabBearer(DigitalBearer):
         if not isinstance(ecc, int): raise ValueError("ECC must be an integer")
         if not isinstance(eid, int): raise ValueError("EId must be an integer")
         if not isinstance(sid, int): raise ValueError("SId must be an integer")
-        if not isinstance(scids, (int, long)): raise ValueError("SCIdS must be an number")
+        if not isinstance(scids, int): raise ValueError("SCIdS must be an number")
         if xpad and not isinstance(xpad, int): raise ValueError("XPAD AppType must be an integer")
         
     @classmethod
@@ -293,7 +293,7 @@ class FmBearer(Bearer):
         return FmBearer(ecc, pi, frequency)
     
     def __str__(self):
-        uri = 'fm:{gcc:03x}.{pi:04x}.{frequency:05d}'.format(gcc=(self.pi >> 4 & 0xf00) + self.ecc, pi=self.pi, frequency=self.frequency/10)
+        uri = 'fm:{gcc:03x}.{pi:04x}.{frequency:05d}'.format(gcc=(self.pi >> 4 & 0xf00) + self.ecc, pi=self.pi, frequency=int(self.frequency/10))
         return uri
     
     def __repr__(self):
@@ -704,7 +704,7 @@ class ProgrammeGroup(Named, Described):
         Named.__init__(self)
         Described.__init__(self)
         self.crid = crid
-        if type(shortcrid) != int: raise ValueError('shortcrid must be an integer')
+        if not isinstance(shortcrid, int): raise ValueError('shortcrid must be an integer')
         self.shortcrid = shortcrid
         self.type = type
         self.numOfItem = numOfItems
@@ -768,7 +768,7 @@ class Polygon:
         points = []
         seq = string.split()
         if len(seq) % 2: raise ValueError('polygon string must have an even number of lat,lon')
-        for i in xrange(0, len(seq), 2):
+        for i in range(0, len(seq), 2):
             p = Point(seq[i], seq[i+1])
             points.append(p)
         return Polygon(points)

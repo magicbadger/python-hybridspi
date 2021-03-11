@@ -30,7 +30,7 @@ import logging
 
 info = ServiceInfo(originator='Global Radio', 
                    provider='Global Radio', 
-                   created=datetime.datetime(2014, 04, 25, 0, 50, 31, 0))
+                   created=datetime.datetime(2014, 4, 25, 0, 50, 31, 0))
 
 # Ensemble
 ensemble = Ensemble(0xe1, 0xc479)
@@ -109,5 +109,5 @@ group.links.append(Link('http://en.wikipedia.org/wiki/Capital_(radio_network)"',
 group.services.append(service)
 info.groups.append(group)
 
-
-print marshall(info, ensemble=ensemble)
+import sys
+sys.stdout.buffer.write(marshall(info, ensemble=ensemble))

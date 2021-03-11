@@ -16,26 +16,21 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('binary_decoder')
 
 def usage():
-    print "USAGE: parse_binary_schedule.py [filename] (or expects stdin)"""
+    print("USAGE: parse_binary_schedule.py [filename] (or expects stdin)""")
 
 args = sys.argv[1:]
 if len(args):
     filename = args[0]
-    print 'decoding from', filename
+    print('decoding from', filename)
     f = open(filename, 'rb')
 else:
     f = sys.stdin
 
+import io
 b = bitarray()
-if isinstance(f, file):
+if isinstance(f, io.IOBase):
     logger.debug('object is a file')
-    import StringIO
-    io = StringIO.StringIO()
-    d = f.read()
-    while d:
-        io.write(d)
-        d = f.read()
-    b.frombytes(io.getvalue())
+    b.fromfile(f, -1)
 else:
     logger.debug('object is a string of %d bytes', len(str(i)))
     b.frombytes(f)
@@ -60,4 +55,4 @@ class ElementTraversal(Traversal):
             return str(node)
 
 l = LeftAligned(traverse=ElementTraversal())
-print l(e)
+print(l(e))

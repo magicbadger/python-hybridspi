@@ -22,7 +22,7 @@ from spi import *
 import xml.dom.minidom
 import isodate
 from xml.dom import XML_NAMESPACE
-from urlparse import urlparse
+from urllib.parse import urlparse
 import logging
 
 SCHEMA_NS = 'http://www.worlddab.org/schemas/spi/31'
@@ -66,7 +66,7 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
     if info.version > 1: root.setAttribute('version', str(info.version))
     if info.created: root.setAttribute('creationTime', info.created.replace(microsecond=0).isoformat())
     if info.originator: root.setAttribute('originator', info.originator)
-    if info.provider and isinstance(info.provider, basestring): root.setAttribute('serviceProvider', info.provider)   
+    if info.provider and isinstance(info.provider, str): root.setAttribute('serviceProvider', info.provider)   
     
     # fudge the namespaces in there
     root.setAttribute('xmlns', SCHEMA_NS)
@@ -131,7 +131,7 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
             service_element.appendChild(build_bearer(doc, bearer, listener))
         # lookup
         if service.lookup:
-            from urlparse import urlparse
+            from urllib.parse import urlparse
             url = urlparse(service.lookup)
             lookup_element = doc.createElement('radiodns')
             lookup_element.setAttribute('host', url.netloc)
@@ -152,9 +152,9 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
     doc.appendChild(root)
         
     if indent:
-        return doc.toprettyxml(indent=indent, encoding='UTF-8')
+        return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml('UTF-8')
+        return doc.toprettyxml()
 
 def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
     """
@@ -243,9 +243,9 @@ def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
     listener.on_element(doc, info, epg_element)
         
     if indent:
-        return doc.toprettyxml(indent=indent, encoding='UTF-8')
+        return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml('UTF-8')
+        return doc.toxml()
     
 def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
     """
@@ -320,9 +320,9 @@ def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
     listener.on_element(doc, info, epg_element)
         
     if indent:
-        return doc.toprettyxml(indent=indent, encoding='UTF-8')
+        return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml('UTF-8')
+        return doc.toxml()
  
 
 
@@ -507,11 +507,11 @@ def get_schedule_filename(date, id):
 def parse_serviceinfo(root):
     logger.debug('parsing service information')
     info = ServiceInfo()
-    if root.attrib.has_key('creationTime'): info.created = isodate.parse_datetime(root.attrib['creationTime'])
-    if root.attrib.has_key('version'): info.version = int(root.attrib['version'])
-    if root.attrib.has_key('originator'): info.originator = root.attrib['originator']
-    if root.attrib.has_key('serviceProvider'): info.provider = root.attrib['serviceProvider']
-    if not root.attrib.has_key('{%s}lang' % XML_NAMESPACE): raise Exception('no xml:lang attribute declaration')
+    if 'creationTime' in root.attrib: info.created = isodate.parse_datetime(root.attrib['creationTime'])
+    if 'version' in root.attrib: info.version = int(root.attrib['version'])
+    if 'originator' in root.attrib: info.originator = root.attrib['originator']
+    if 'serviceProvider' in root.attrib: info.provider = root.attrib['serviceProvider']
+    if '{%s}lang' % XML_NAMESPACE not in root.attrib: raise Exception('no xml:lang attribute declaration')
    
     # only one <services> element is supported for now 
     for service_element in root.find("spi:services", namespaces).findall("spi:service", namespaces):
@@ -523,14 +523,14 @@ def parse_time(timeElement):
     if timeElement.tag == '{%s}time' % SCHEMA_NS:
         time = Time(isodate.parse_datetime(timeElement.attrib['time']),
                     isodate.parse_duration(timeElement.attrib['duration']),
-                    isodate.parse_datetime(timeElement.attrib.get('actualTime')) if timeElement.attrib.has_key('actualTime') else None,
-                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if timeElement.attrib.has_key('actualDuration') else None)
+                    isodate.parse_datetime(timeElement.attrib.get('actualTime')) if 'actualTime' in timeElement.attrib else None,
+                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if 'actualDuration' in timeElement.attrib else None)
         return time
     if timeElement.tag == '{%s}relativeTime' % SCHEMA_NS:
         time = RelativeTime(isodate.parse_duration(timeElement.attrib['time']),
                     isodate.parse_duration(timeElement.attrib['duration']),
-                    isodate.parse_duration(timeElement.attrib.get('actualTime')) if timeElement.attrib.has_key('actualTime') else None,
-                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if timeElement.attrib.has_key('actualDuration') else None)
+                    isodate.parse_duration(timeElement.attrib.get('actualTime')) if 'actualTime' in timeElement.attrib else None,
+                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if 'actualDuration' in timeElement.attrib else None)
         return time
     else:
         raise ValueError('unknown time element: %s' % timeElement)
@@ -546,13 +546,13 @@ def parse_bearer(bearer_element):
     else:
         raise ValueError('bearer %s not recognised' % uri)
 
-    if bearer_element.attrib.has_key('cost'):
+    if 'cost' in bearer_element.attrib:
         bearer.cost = int(bearer_element.attrib['cost'])
-    if bearer_element.attrib.has_key('offset'):
+    if 'offset' in bearer_element.attrib:
         bearer.offset = int(bearer_element.attrib['offset'])
-    if bearer_element.attrib.has_key('bitrate'):
+    if 'bitrate' in bearer_element.attrib:
         bearer.bitrate = int(bearer_element.attrib['bitrate'])
-    if bearer_element.attrib.has_key('mimeValue'):
+    if 'mimeValue' in bearer_element.attrib:
         bearer.content = bearer_element.attrib['mimeValue'] 
 
     return bearer
@@ -566,9 +566,9 @@ def parse_location(locationElement):
 
 def parse_programme_event(programmeEventElement):
     event = ProgrammeEvent(programmeEventElement.attrib['shortId'])
-    if programmeEventElement.attrib.has_key('id'): event.crid = programmeEventElement.attrib['id']
-    if programmeEventElement.attrib.has_key('version'): event.version = int(programmeEventElement.attrib['version'])
-    if programmeEventElement.attrib.has_key('recommendation'): event.recommendation = bool(programmeEventElement.attrib['recommendation'])
+    if 'id' in programmeEventElement.attrib: event.crid = programmeEventElement.attrib['id']
+    if 'version' in programmeEventElement.attrib: event.version = int(programmeEventElement.attrib['version'])
+    if 'recommendation' in programmeEventElement.attrib: event.recommendation = bool(programmeEventElement.attrib['recommendation'])
 
     for nameElement in programmeEventElement.findall("spi:shortName", namespaces): event.names.append(parse_name(nameElement))
     for nameElement in programmeEventElement.findall("spi:mediumName", namespaces): event.names.append(parse_name(nameElement))
@@ -592,10 +592,10 @@ def parse_programme_event(programmeEventElement):
 
 def parse_programme(programmeElement):
     programme = Programme(programmeElement.attrib['id'], programmeElement.attrib['shortId'])
-    if programmeElement.attrib.has_key('version'): programme.version = int(programmeElement.attrib['version'])
-    if programmeElement.attrib.has_key('recommendation'): programme.recommendation = bool(programmeElement.attrib['recommendation'])
-    if programmeElement.attrib.has_key('broadcast'): programme.onair = True if programmeElement.attrib['broadcast'] == 'on-air' else False
-    if programmeElement.attrib.has_key('bitrate'): programme.bitrate = int(programmeElement.attrib['bitrate'])
+    if 'version' in programmeElement.attrib: programme.version = int(programmeElement.attrib['version'])
+    if 'recommendation' in programmeElement.attrib: programme.recommendation = bool(programmeElement.attrib['recommendation'])
+    if 'broadcast' in programmeElement.attrib: programme.onair = True if programmeElement.attrib['broadcast'] == 'on-air' else False
+    if 'bitrate' in programmeElement.attrib: programme.bitrate = int(programmeElement.attrib['bitrate'])
 
     for nameElement in programmeElement.findall("spi:shortName", namespaces): programme.names.append(parse_name(nameElement))
     for nameElement in programmeElement.findall("spi:mediumName", namespaces): programme.names.append(parse_name(nameElement))
@@ -621,9 +621,9 @@ def parse_programme(programmeElement):
 
 def parse_schedule(scheduleElement):
     schedule = Schedule()
-    if scheduleElement.attrib.has_key('creationTime'): schedule.created = isodate.parse_datetime(scheduleElement.attrib['creationTime'])
-    if scheduleElement.attrib.has_key('version'): schedule.version = int(scheduleElement.attrib['version'])
-    if scheduleElement.attrib.has_key('originator'): schedule.originator = scheduleElement.attrib['originator']
+    if 'creationTime' in scheduleElement.attrib: schedule.created = isodate.parse_datetime(scheduleElement.attrib['creationTime'])
+    if 'version' in scheduleElement.attrib: schedule.version = int(scheduleElement.attrib['version'])
+    if 'originator' in scheduleElement.attrib: schedule.originator = scheduleElement.attrib['originator']
     
     for programmeElement in scheduleElement.findall('spi:programme', namespaces):
         schedule.programmes.append(parse_programme(programmeElement))
@@ -661,17 +661,17 @@ def parse_multimedia(mediaElement):
     mime = None
     width = None
     height = None
-    if mediaElement.attrib.has_key('type'):
+    if 'type' in mediaElement.attrib:
         type_str = mediaElement.attrib['type']
         if type_str == 'logo_colour_square': type = Multimedia.LOGO_COLOUR_SQUARE
         if type_str == 'logo_colour_rectangle': type = Multimedia.LOGO_COLOUR_RECTANGLE
         if type_str == 'logo_unrestricted': 
             type = Multimedia.LOGO_UNRESTRICTED
-            if not mediaElement.attrib.has_key('mimeValue') or not mediaElement.attrib.has_key('width') or not mediaElement.attrib.has_key('height'):
+            if 'mimeValue' not in mediaElement.attrib or 'width' not in mediaElement.attrib or 'height' not in mediaElement.attrib:
                 raise ValueError('must specify mimeValue, width and height for unrestricted logo: %s', mediaElement)
-    if mediaElement.attrib.has_key('mimeValue'): mime = mediaElement.attrib['mimeValue']
-    if mediaElement.attrib.has_key('width'): width = int(mediaElement.attrib['width'])
-    if mediaElement.attrib.has_key('height'): height = int(mediaElement.attrib['height'])
+    if 'mimeValue' in mediaElement.attrib: mime = mediaElement.attrib['mimeValue']
+    if 'width' in mediaElement.attrib: width = int(mediaElement.attrib['width'])
+    if 'height' in mediaElement.attrib: height = int(mediaElement.attrib['height'])
         
     multimedia = Multimedia(mediaElement.attrib['url'], type=type, content=mime, height=height, width=width)
     return multimedia      
@@ -683,22 +683,22 @@ def parse_genre(genreElement):
 
 def parse_link(linkElement):
     link = Link(linkElement.attrib['uri'])
-    if linkElement.attrib.has_key('description'):
+    if 'description' in linkElement.attrib:
         link.description = linkElement.attrib['description']
-    if linkElement.attrib.has_key('mimeValue'):
+    if 'mimeValue' in linkElement.attrib:
         link.content = linkElement.attrib['mimeValue']    
-    if linkElement.attrib.has_key('expiryTime'):
+    if 'expiryTime' in linkElement.attrib:
         link.expiry = isodate.parse_datetime(linkElement.attrib['expiryTime']) 
     return link
         
 def parse_keywords(keywordsElement):
-    return map(lambda x: x.strip(), keywordsElement.text.split(','))
+    return [x.strip() for x in keywordsElement.text.split(',')]
     
 def parse_service(service_element):
     service = Service()
     
     # attributes
-    if service_element.attrib.has_key('version'): service.version = int(service_element.attrib['version'])
+    if 'version' in service_element.attrib: service.version = int(service_element.attrib['version'])
     
     # names
     for child in service_element.findall("spi:shortName", namespaces): 
@@ -760,8 +760,8 @@ def unmarshall(i):
     """
     
     # read data
-    import StringIO
-    d = i if isinstance(i, file) else StringIO.StringIO(i)
+    import io
+    d = i if isinstance(i, io.IOBase) else io.StringIO(i)
     from xml.etree.ElementTree import parse 
     logger.debug('parsing XML data from: %s', d)
     doc = parse(d)
