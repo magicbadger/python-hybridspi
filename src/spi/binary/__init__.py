@@ -775,6 +775,10 @@ def build_schedule(schedule):
         for name in programme.names:
             child = build_name(name)
             programme_element.children.append(child)
+       # descriptions
+       for description in programme.descriptions:
+            child = build_description(description)
+            programme_element.children.append(child)
         # locations
         for location in programme.locations:
             child = build_location(location)
@@ -865,24 +869,31 @@ def build_description(description):
         mediagroup_element.children.append(description_element)
     return mediagroup_element
 
-def build_mediagroup(media):
-    if not isinstance(media, Multimedia): 
-        raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+def build_mediagroup(all_media):
     mediagroup_element = Element(0x13)
-    media_element = Element(0x2b)
-    mediagroup_element.children.append(media_element)
-    if media.content is not None:
-        media_element.attributes.append(Attribute(0x80, media.content, encode_string))
-    if media.url is not None:
-        media_element.attributes.append(Attribute(0x82, media.url, encode_string))
-    if media.type == Multimedia.LOGO_UNRESTRICTED:
-        media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
-        if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
-        if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
-    if media.type == Multimedia.LOGO_COLOUR_SQUARE:
-        media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
-    if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
-        media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
+    
+    for media in all_media :
+        
+        if not isinstance(media, Multimedia):
+            raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+        
+        media_element = Element(0x2b)
+        
+        if media.content is not None:
+            media_element.attributes.append(Attribute(0x80, media.content, encode_string))
+        if media.url is not None:
+            media_element.attributes.append(Attribute(0x82, media.url, encode_string))
+        if media.type == Multimedia.LOGO_UNRESTRICTED:
+            media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
+            if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
+            if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
+        if media.type == Multimedia.LOGO_COLOUR_SQUARE:
+            media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
+        if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
+            media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
+        
+        mediagroup_element.children.append(media_element)
+
     return mediagroup_element
     
 def build_genre(genre):
@@ -968,9 +979,10 @@ def build_service(service):
         service_element.children.append(build_description(description))
 
     # media
-    for media in service.media:
-        service_element.children.append(build_mediagroup(media))
-
+    #for media in service.media:
+    #    service_element.children.append(build_mediagroup(media))
+    service_element.children.append(build_mediagroup(service.media))
+    
     # genre
     for genre in service.genres:
         service_element.children.append(build_genre(genre))
