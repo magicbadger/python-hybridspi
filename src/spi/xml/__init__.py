@@ -537,14 +537,18 @@ def parse_time(timeElement):
 
 def parse_bearer(bearer_element):
     uri = bearer_element.attrib['id']
-    if uri.startswith('dab'):
-        bearer = DabBearer.fromstring(uri)
-    elif uri.startswith('fm'):
-        bearer = FmBearer.fromstring(uri) 
-    elif uri.startswith('http'):
-        bearer = IpBearer(uri)
-    else:
-        raise ValueError('bearer %s not recognised' % uri)
+    try:
+        if uri.startswith('dab'):
+            bearer = DabBearer.fromstring(uri)
+        elif uri.startswith('fm'):
+            bearer = FmBearer.fromstring(uri) 
+        elif uri.startswith('http'):
+            bearer = IpBearer(uri)
+        else:
+            raise ValueError('bearer %s not recognised' % uri)
+    except:
+        bearer = IpBearer("http://null/")
+        logger.debug('bearer %s is malformed', uri)
 
     if bearer_element.attrib.has_key('cost'):
         bearer.cost = int(bearer_element.attrib['cost'])
@@ -652,9 +656,9 @@ def parse_description(descriptionElement):
     if descriptionElement.tag == '{%s}shortDescription' % SCHEMA_NS:
         return ShortDescription(descriptionElement.text)
     elif descriptionElement.tag == '{%s}longDescription' % SCHEMA_NS:
-        return LongDescription(descriptionElement.text)   
+        return LongDescription(descriptionElement.text)
     else:
-        raise ValueError('unknown description element: %s' % descriptionElement)
+        raise ValueError('unknown or malformed description element: %s' % descriptionElement)
     
 def parse_multimedia(mediaElement):
     type = None
@@ -702,40 +706,40 @@ def parse_service(service_element):
     
     # names
     for child in service_element.findall("spi:shortName", namespaces): 
-        service.names.append(parse_name(child))
+        if child.text is not None: service.names.append(parse_name(child))
     for child in service_element.findall("spi:mediumName", namespaces): 
-        service.names.append(parse_name(child))
+        if child.text is not None: service.names.append(parse_name(child))
     for child in service_element.findall("spi:longName", namespaces): 
-        service.names.append(parse_name(child))
+        if child.text is not None: service.names.append(parse_name(child))
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
-        service.bearers.append(parse_bearer(child))
+        if child.attrib.has_key("id"): service.bearers.append(parse_bearer(child))
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
         for child in media_element.findall("spi:multimedia", namespaces):
-            service.media.append(parse_multimedia(child))
+            if child.attrib.has_key("url"): service.media.append(parse_multimedia(child))
         for child in media_element.findall("spi:shortDescription", namespaces):
-            service.descriptions.append(parse_description(child))
+            if child.text is not None: service.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
-            service.descriptions.append(parse_description(child))
+            if child.text is not None: service.descriptions.append(parse_description(child))
 
     # genres
     for child in service_element.findall("spi:genre", namespaces): 
-        service.genres.append(parse_genre(child))
+        if child.text is not None: service.genres.append(parse_genre(child))
 
     # links
-    for child in service_element.findall("spi:link", namespaces): 
-        service.links.append(parse_link(child))
+    for child in service_element.findall("spi:link", namespaces):
+        if child.attrib.has_key("uri"): service.links.append(parse_link(child))
 
     # keywords
     for child in service_element.findall("spi:keywords", namespaces): 
-        service.keywords.extend(parse_keywords(child))
+        if child.text is not None: service.keywords.extend(parse_keywords(child))
 
     # lookup
     for child in service_element.findall("spi:radiodns", namespaces):
-        service.lookup = 'http://%s/%s' % (child.attrib['fqdn'], child.attrib['serviceIdentifier'])
+        if child.attrib.has_key("fqdn") and child.attrib.has_key("serviceIdentifier"): service.lookup = 'http://%s/%s' % (child.attrib['fqdn'], child.attrib['serviceIdentifier'])
     
     return service
 
