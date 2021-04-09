@@ -30,7 +30,6 @@ from datetime import timedelta
 
 logger = logging.getLogger("spi.binary")
 
-
 class Ensemble:
     """
     Describes a DAB ensemble 
@@ -714,7 +713,7 @@ class CData:
         return CData(data.tostring())
 
 def marshall(obj, **kwargs):
-    """Marshalls an :class:Epg or :class:ServiceInfo to its binary document"""    
+    """Marshalls an :class:Epg or :class:ServiceInfo to its binary document"""
     if isinstance(obj, ServiceInfo): return marshall_serviceinfo(obj, kwargs.get('ensemble', None))
     elif isinstance(obj, ProgrammeInfo): return marshall_programmeinfo(obj)
     
@@ -775,7 +774,7 @@ def build_schedule(schedule):
         for name in programme.names:
             child = build_name(name)
             programme_element.children.append(child)
-       # descriptions
+        # descriptions
         for description in programme.descriptions:
             child = build_description(description)
             programme_element.children.append(child)
@@ -784,9 +783,7 @@ def build_schedule(schedule):
             child = build_location(location)
             programme_element.children.append(child)
         # media
-        for media in programme.media:
-            child = build_mediagroup(media)
-            programme_element.children.append(child)
+        if programme.media: programme_element.children.append(build_mediagroup(programme.media))
         # genre
         for genre in programme.genres:
             child = build_genre(genre)
@@ -940,8 +937,7 @@ def build_programme_event(event):
     for location in event.locations:
         event_element.children.append(build_location(location))    
     # media
-    for media in event.media:
-        event_element.children.append(build_mediagroup(media))       
+    if event.media: event_element.children.append(build_mediagroup(event.media))
     # genre
     for genre in event.genres:
         event_element.children.append(build_genre(genre))
@@ -979,9 +975,7 @@ def build_service(service):
         service_element.children.append(build_description(description))
 
     # media
-    #for media in service.media:
-    #    service_element.children.append(build_mediagroup(media))
-    service_element.children.append(build_mediagroup(service.media))
+    if service.media: service_element.children.append(build_mediagroup(service.media))
     
     # genre
     for genre in service.genres:
@@ -1027,8 +1021,7 @@ def build_ensemble(ensemble, services):
         event_element.children.append(build_description(description))
 
     # media
-    for media in ensemble.media:
-        ensemble_element.children.append(build_mediagroup(media))
+    if ensemble.media: ensemble_element.children.append(build_mediagroup(ensemble.media))
 
     # keywords
 
