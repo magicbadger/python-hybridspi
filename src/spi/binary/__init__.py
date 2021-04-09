@@ -775,6 +775,10 @@ def build_schedule(schedule):
         for name in programme.names:
             child = build_name(name)
             programme_element.children.append(child)
+       # descriptions
+       for description in programme.descriptions:
+            child = build_description(description)
+            programme_element.children.append(child)
         # locations
         for location in programme.locations:
             child = build_location(location)
