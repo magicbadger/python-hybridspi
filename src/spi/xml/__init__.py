@@ -732,6 +732,7 @@ def parse_service(service_element, listener):
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
+        if child.attrib.has_key("id"): service.bearers.append(parse_bearer(child))
         service.bearers.append(parse_bearer(child, listener))
 
     # media
