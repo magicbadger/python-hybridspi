@@ -92,7 +92,6 @@ class Element:
 
         # encode CData
         if self.cdata is not None: 
-	    print 'rendering cdata: %s' % self.cdata
             logger.debug('rendering cdata: %s', self.cdata)
             data += self.cdata.tobytes()
         
@@ -665,7 +664,7 @@ class CData:
         bits.frombytes('\x01')
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
         datalength = len(self.value.encode('utf-8'))
         if datalength <= 253:
