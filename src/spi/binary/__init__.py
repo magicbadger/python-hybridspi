@@ -29,7 +29,6 @@ import sys
 from datetime import timedelta
 
 logger = logging.getLogger("spi.binary")
-logger.setLevel(10)
 
 class Ensemble:
     """
