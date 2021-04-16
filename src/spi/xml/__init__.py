@@ -37,6 +37,11 @@ class MarshallListener:
     
     def on_element(self, doc, obj, element):
         pass
+
+class UnmarshallListener:
+
+    def on_element(self, element):
+        pass
     
 def marshall(obj, listener=MarshallListener(), indent=None, **kwargs):
     """
@@ -72,7 +77,7 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
     root.setAttribute('xmlns', SCHEMA_NS)
     root.setAttribute('xmlns:xsi', XSI_NS)
     root.setAttribute('xsi:schemaLocation', '%s %s' % (SCHEMA_NS, SCHEMA_XSD))
-    root.setAttribute('xml:lang', 'en')
+    root.setAttribute('xml:lang', 'en') # encode non-english languages
 
     # services
     services_element = doc.createElement('services')
@@ -131,11 +136,9 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
             service_element.appendChild(build_bearer(doc, bearer, listener))
         # lookup
         if service.lookup:
-            from urllib.parse import urlparse
-            url = urlparse(service.lookup)
             lookup_element = doc.createElement('radiodns')
-            lookup_element.setAttribute('host', url.netloc)
-            lookup_element.setAttribute('serviceIdentifier', url.path[1:])
+            lookup_element.setAttribute('fqdn', service.lookup.fqdn)
+            lookup_element.setAttribute('serviceIdentifier', service.lookup.serviceIdentifier)
             listener.on_element(doc, service.lookup, lookup_element)
             service_element.appendChild(lookup_element)
         # geolocation
@@ -179,73 +182,85 @@ def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
     
     # schedule
     for schedule in info.schedules:
-        schedule_element = doc.createElement('schedule')
+        schedule_element = build_schedule(doc, schedule, listener)
+        listener.on_element(doc, schedule_element, epg_element)
         epg_element.appendChild(schedule_element)
-        if schedule.version > 1: schedule_element.setAttribute('version', str(schedule.version))
-        schedule.created = schedule.created.replace(microsecond=0)
-        schedule_element.setAttribute('creationTime', schedule.created.isoformat())
-        if schedule.originator is not None:
-            schedule_element.setAttribute('originator', schedule.originator)
-            
-        # scope
-        scope_element = doc.createElement('scope')
-        scope_element.setAttribute('startTime', schedule.start.isoformat())
-        scope_element.setAttribute('stopTime', schedule.end.isoformat())
-        listener.on_element(doc, schedule, scope_element)
-        schedule_element.appendChild(scope_element)
-        
-        # programmes
-        for programme in schedule.programmes:
-            programme_element = doc.createElement('programme')
-            programme_element.setAttribute('shortId', str(programme.shortcrid))
-            programme_element.setAttribute('id', str(programme.crid))
-            if programme.version > 1:
-                programme_element.setAttribute('version', str(programme.version))
-            if programme.recommendation:
-                programme_element.setAttribute('recommendation', 'yes')
-            # names
-            for name in programme.names:
-                child = build_name(doc, name, listener)
-                programme_element.appendChild(child)
-            # locations
-            for location in programme.locations:
-                child = build_location(doc, location, listener)
-                programme_element.appendChild(child)    
-            # descriptions
-            for description in programme.descriptions:
-                child = build_description(doc, description, listener)
-                programme_element.appendChild(child)
-            # media
-            for media in programme.media:
-                child = build_mediagroup(doc, media, listener)
-                programme_element.appendChild(child)     
-            # genre
-            for genre in programme.genres:
-                child = build_genre(doc, genre, listener)
-                programme_element.appendChild(child)    
-            # membership
-            for membership in programme.memberships:
-                child = build_membership(doc, membership, listener)
-                programme_element.appendChild(child)    
-            # link
-            for link in programme.links:
-                child = build_link(doc, link, listener)
-                programme_element.appendChild(child)      
-            # events
-            for event in programme.events:
-                child = build_programme_event(doc, event, listener)
-                programme_element.appendChild(child) 
-                
-            schedule_element.appendChild(programme_element)
-                
-            listener.on_element(doc, programme, programme_element)
-            
+
     listener.on_element(doc, info, epg_element)
         
     if indent:
         return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml()
+        return doc.toxml()        
+        
+def build_schedule(doc, schedule, listener):
+    
+    schedule_element = doc.createElement('schedule')
+    if schedule.version > 1: schedule_element.setAttribute('version', str(schedule.version))
+    schedule.created = schedule.created.replace(microsecond=0)
+    schedule_element.setAttribute('creationTime', schedule.created.isoformat())
+    if schedule.originator is not None:
+        schedule_element.setAttribute('originator', schedule.originator)
+        
+    # scope
+    scope = schedule.get_scope()
+    scope_element = doc.createElement('scope')
+    scope_element.setAttribute('startTime', scope.start.isoformat())
+    scope_element.setAttribute('stopTime', scope.end.isoformat())
+    listener.on_element(doc, schedule, scope_element)
+    schedule_element.appendChild(scope_element)
+    
+    # programmes
+    for programme in schedule.programmes:
+        programme_element = build_programme(doc, programme, listener)
+        listener.on_element(doc, programme_element, schedule_element)
+        schedule_element.appendChild(programme_element)
+
+    return schedule_element
+
+def build_programme(doc, programme, listener):
+    programme_element = doc.createElement('programme')
+    programme_element.setAttribute('shortId', str(programme.shortcrid))
+    programme_element.setAttribute('id', str(programme.crid))
+    if programme.version > 1:
+        programme_element.setAttribute('version', str(programme.version))
+    if programme.recommendation:
+        programme_element.setAttribute('recommendation', 'yes')
+    # names
+    for name in programme.names:
+        child = build_name(doc, name, listener)
+        programme_element.appendChild(child)
+    # locations
+    for location in programme.locations:
+        child = build_location(doc, location, listener)
+        programme_element.appendChild(child)    
+    # descriptions
+    for description in programme.descriptions:
+        child = build_description(doc, description, listener)
+        programme_element.appendChild(child)
+    # media
+    for media in programme.media:
+        child = build_mediagroup(doc, media, listener)
+        programme_element.appendChild(child)     
+    # genre
+    for genre in programme.genres:
+        child = build_genre(doc, genre, listener)
+        programme_element.appendChild(child)    
+    # membership
+    for membership in programme.memberships:
+        child = build_membership(doc, membership, listener)
+        programme_element.appendChild(child)    
+    # link
+    for link in programme.links:
+        child = build_link(doc, link, listener)
+        programme_element.appendChild(child)      
+    # events
+    for event in programme.events:
+        child = build_programme_event(doc, event, listener)
+        programme_element.appendChild(child) 
+        
+    return programme_element      
+
     
 def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
     """
@@ -338,7 +353,8 @@ def build_name(doc, name, listener):
     listener.on_element(doc, name, name_element)
     return name_element
 
-def build_bearer(doc, bearer, listener):
+def build_bearer(doc, bearer: Bearer, listener):
+    if bearer is None: raise TypeError("a valid bearer must be defined")
     bearer_element = doc.createElement('bearer')
     bearer_element.setAttribute('id', str(bearer))
     if bearer.cost:
@@ -504,7 +520,7 @@ def get_iso_period(duration):
 def get_schedule_filename(date, id):
     return '%s_%02x_%04x_%04x_%x_PI.xml' % (date.strftime('%Y%m%d'), id.ecc, id.eid, id.sid, id.scids)
 
-def parse_serviceinfo(root):
+def parse_serviceinfo(root, listener):
     logger.debug('parsing service information')
     info = ServiceInfo()
     if 'creationTime' in root.attrib: info.created = isodate.parse_datetime(root.attrib['creationTime'])
@@ -515,7 +531,7 @@ def parse_serviceinfo(root):
    
     # only one <services> element is supported for now 
     for service_element in root.find("spi:services", namespaces).findall("spi:service", namespaces):
-        info.services.append(parse_service(service_element))
+        info.services.append(parse_service(service_element, listener))
     
     return info
 
@@ -535,7 +551,8 @@ def parse_time(timeElement):
     else:
         raise ValueError('unknown time element: %s' % timeElement)
 
-def parse_bearer(bearer_element):
+def parse_bearer(bearer_element, listener):
+    listener.on_element(bearer_element)
     uri = bearer_element.attrib['id']
     if uri.startswith('dab'):
         bearer = DabBearer.fromstring(uri)
@@ -564,7 +581,7 @@ def parse_location(locationElement):
     for bearerElement in locationElement.findall('spi:bearer', namespaces): location.bearers.append(parse_bearer(bearerElement))
     return location 
 
-def parse_programme_event(programmeEventElement):
+def parse_programme_event(programmeEventElement, listener):
     event = ProgrammeEvent(programmeEventElement.attrib['shortId'])
     if 'id' in programmeEventElement.attrib: event.crid = programmeEventElement.attrib['id']
     if 'version' in programmeEventElement.attrib: event.version = int(programmeEventElement.attrib['version'])
@@ -577,7 +594,7 @@ def parse_programme_event(programmeEventElement):
     # media
     for media_element in programmeEventElement.findall("spi:mediaDescription", namespaces):
         for child in media_element.findall("spi:multimedia", namespaces):
-            event.media.append(parse_multimedia(child))
+            event.media.append(parse_multimedia(child, listener))
         for child in media_element.findall("spi:shortDescription", namespaces):
             event.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
@@ -590,7 +607,7 @@ def parse_programme_event(programmeEventElement):
     
     return event
 
-def parse_programme(programmeElement):
+def parse_programme(programmeElement, listener):
     programme = Programme(programmeElement.attrib['id'], programmeElement.attrib['shortId'])
     if 'version' in programmeElement.attrib: programme.version = int(programmeElement.attrib['version'])
     if 'recommendation' in programmeElement.attrib: programme.recommendation = bool(programmeElement.attrib['recommendation'])
@@ -604,7 +621,7 @@ def parse_programme(programmeElement):
     # media
     for media_element in programmeElement.findall("spi:mediaDescription", namespaces):
         for child in media_element.findall("spi:multimedia", namespaces):
-            programme.media.append(parse_multimedia(child))
+            programme.media.append(parse_multimedia(child, listener))
         for child in media_element.findall("spi:shortDescription", namespaces):
             programme.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
@@ -656,7 +673,8 @@ def parse_description(descriptionElement):
     else:
         raise ValueError('unknown description element: %s' % descriptionElement)
     
-def parse_multimedia(mediaElement):
+def parse_multimedia(mediaElement, listener):
+    listener.on_element(mediaElement)
     type = None
     mime = None
     width = None
@@ -694,7 +712,7 @@ def parse_link(linkElement):
 def parse_keywords(keywordsElement):
     return [x.strip() for x in keywordsElement.text.split(',')]
     
-def parse_service(service_element):
+def parse_service(service_element, listener):
     service = Service()
     
     # attributes
@@ -710,12 +728,12 @@ def parse_service(service_element):
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
-        service.bearers.append(parse_bearer(child))
+        service.bearers.append(parse_bearer(child, listener))
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
         for child in media_element.findall("spi:multimedia", namespaces):
-            service.media.append(parse_multimedia(child))
+            service.media.append(parse_multimedia(child, listener))
         for child in media_element.findall("spi:shortDescription", namespaces):
             service.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
@@ -735,11 +753,11 @@ def parse_service(service_element):
 
     # lookup
     for child in service_element.findall("spi:radiodns", namespaces):
-        service.lookup = 'http://%s/%s' % (child.attrib['fqdn'], child.attrib['serviceIdentifier'])
+        service.lookup = Lookup(child.attrib['fqdn'], child.attrib['serviceIdentifier'])
     
     return service
 
-def parse_ensemble(ensembleElement):
+def parse_ensemble(ensembleElement, listener):
     ensemble = Ensemble(ContentId.fromstring(ensembleElement.attrib['id']))
     for nameElement in ensembleElement.findall("spi:shortName", namespaces): ensemble.names.append(parse_name(nameElement))
     for nameElement in ensembleElement.findall("spi:mediumName", namespaces): ensemble.names.append(parse_name(nameElement))
@@ -749,10 +767,10 @@ def parse_ensemble(ensembleElement):
         ensemble.frequencies.append(int(frequencyElement.attrib['kHz']))
         
     for service_element in ensembleElement.findall("spi:service", namespaces):
-        ensemble.services.append(parse_service(service_element))
+        ensemble.services.append(parse_service(service_element, listener))
     return ensemble
 
-def unmarshall(i):
+def unmarshall(i, listener=UnmarshallListener()):
     """Unmarshalls a PI or SI XML file to its respective :class:Epg or :class:ServiceInfo object
     
     :param i: String or File object to read XML from
@@ -769,7 +787,7 @@ def unmarshall(i):
     logger.debug('got root element: %s', root)
     
     if root.tag == '{%s}serviceInformation' % SCHEMA_NS:
-        return parse_serviceinfo(root)
+        return parse_serviceinfo(root, listener)
     elif root.tag == '{%s}epg' % SCHEMA_NS:
         if len(root.findall("spi:schedule", namespaces)):
             return parse_programmeinfo(root)

@@ -21,20 +21,21 @@
 
 
 import datetime
-import locale
 import re
 from dateutil.tz import tzlocal
 
 MAX_SHORTCRID = 16777215
+DEFAULT_LANGUAGE = "en"
 
 class Text:
     """Abstract class for textual information"""
     
-    def __init__(self, text, max_length, locale=locale.getdefaultlocale()):
+    def __init__(self, text, max_length, language = None):
         if not isinstance(text, str): raise ValueError('text must be of a basestring subtype, not %s: %s', type(text), text)
         if len(text) > max_length: raise ValueError('text length exceeds the maximum: %d>%d' % (len(text), max_length))
         self.max_length = max_length
         self.text = text
+        self.language = language if language is not None else DEFAULT_LANGUAGE
         
     def __str__(self):
         return self.text
@@ -47,40 +48,40 @@ class LongDescription(Text):
     
     max_length = 1800
     
-    def __init__(self, text, locale=locale.getdefaultlocale()):
-        Text.__init__(self, text, 1800, locale)
+    def __init__(self, text, language = None):
+        Text.__init__(self, text, 1800, language)
 
 class ShortDescription(Text):
     """Short descriptive text, with maximum length of 180 characters"""
     
     max_length = 180
     
-    def __init__(self, text, locale=locale.getdefaultlocale()):
-        Text.__init__(self, text, 180, locale)
+    def __init__(self, text, language = None):
+        Text.__init__(self, text, 180, language)
         
 class LongName(Text):
     """Long name text, with maximum length of 128 characters"""
     
     max_length = 128
     
-    def __init__(self, text, locale=locale.getdefaultlocale()):
-        Text.__init__(self, text, 128, locale)
+    def __init__(self, text, language = None):
+        Text.__init__(self, text, 128, language)
 
 class MediumName(Text):
     """Medium name text, with maximum length of 16 characters"""
 
     max_length = 16
     
-    def __init__(self, text, locale=locale.getdefaultlocale()):
-        Text.__init__(self, text, 16, locale)
+    def __init__(self, text, language = None):
+        Text.__init__(self, text, 16, language)
         
 class ShortName(Text):
     """Short name text, with maximum length of 8 characters"""
     
     max_length = 8
     
-    def __init__(self, text, locale=locale.getdefaultlocale()):
-        Text.__init__(self, text, 8, locale)    
+    def __init__(self, text, language = None):
+        Text.__init__(self, text, 8, language)    
         
 def suggest_names(names):   
     """Returns a list of names best fitting to the lengths of the original
@@ -159,23 +160,38 @@ class Bearer(Geolocated):
     defined in the Hybrid Radio Lookup specification, TS 103 270
     """
 
-    def __init__(self, cost=None, offset=None):
-        self.cost = cost
-        self.offset = offset
+    cost = None
+    offset = None
+
+    def __init__(self, cost : int = None, offset : int = None):
+        if cost is not None: self.cost = int(cost)
+        if offset is not None: self.offset = offset
+
+    def __str__(self):
+        raise ValueError('__str__ function not defined in type: %s' % type(self))
 
 class DigitalBearer(Bearer):
     """
     Digital bearer superclass
     """
 
-    def __init__(self, cost=None, offset=None, bitrate=None, content=None):
+    bitrate = None
+    content = None
+
+    def __init__(self, content : str, cost : int=None, offset : int=0, bitrate : int=None):
         Bearer.__init__(self, cost, offset)
-        self.bitrate = bitrate
+        if bitrate is not None: self.bitrate = int(bitrate)
         self.content = content
+
+    def __str__(self):
+        raise ValueError('__str__ function not defined in type: %s' % type(self))        
 
 class DabBearer(DigitalBearer):
 
-    def __init__(self, ecc, eid, sid, scids=0, xpad=None, cost=None, offset=None, bitrate=None, content=None):
+    DAB = 'audio/mpeg'
+    DAB_PLUS = 'audio/aacp'
+
+    def __init__(self, ecc, eid, sid, scids=0, content=DAB_PLUS, xpad=None, cost=None, offset=None, bitrate=None):
 
         """
         DAB Service Bearer
@@ -239,13 +255,43 @@ class DabBearer(DigitalBearer):
         if self.xpad is not None:
             uri += '.{xpad:04x}'.format(xpad=self.xpad)
         return uri
-    
+
     def __repr__(self):
         return '<DabBearer: %s>' % str(self)
-    
-    def __eq__(self, other):
-        return str(self) == str(other)
             
+class HdBearer(DigitalBearer):
+
+    def __init__(self, tx, cc, mId=None, cost=None, offset=None):
+
+        """
+        HD Service Bearer
+
+        ::    
+        hd:<tx>.<cc>.<mId> in hex
+        :: 
+
+        :param tx: Transmitter Identifier
+        :type tx: int
+        :param cc: Country code
+        :type cc: int
+        :param mId: Multocast programme service
+        :type mId: int
+        """
+     
+        HdBearer.__init__(self, cost=cost, offset=offset, bitrate=None, content=None)
+        self.tx = tx
+        self.cc = cc
+        self.mId = mId
+        
+    def __str__(self):
+        uri = 'hd:{tx:05x}.{cc:03x}.{sid:04x}.{scids:01x}'.format(gcc=(self.eid >> 4 & 0xf00) + self.ecc, eid=self.eid, sid=self.sid, scids=self.scids)
+        if self.xpad is not None:
+            uri += '.{xpad:04x}'.format(xpad=self.xpad)
+        return uri
+
+    def __repr__(self):
+        return '<DabBearer: %s>' % str(self)        
+
 class FmBearer(Bearer):
 
     def __init__(self, ecc, pi, frequency, cost=None, offset=None):
@@ -304,7 +350,7 @@ class FmBearer(Bearer):
 
 class IpBearer(DigitalBearer):
 
-    def __init__(self, uri, cost=None, offset=None, bitrate=None, content=None):
+    def __init__(self, uri, content, cost=None, offset=None, bitrate=None):
 
         """
         IP Service Bearer
@@ -313,7 +359,7 @@ class IpBearer(DigitalBearer):
         :type uri: URI
         """
      
-        DigitalBearer.__init__(self, cost=cost, offset=offset, bitrate=bitrate, content=content)
+        DigitalBearer.__init__(self, content, cost=cost, offset=offset, bitrate=bitrate)
         self.uri = uri
 
     def __str__(self):
@@ -321,9 +367,6 @@ class IpBearer(DigitalBearer):
     
     def __repr__(self):
         return '<IpBearer: %s>' % str(self)
-    
-    def __eq__(self, other):
-        return str(self) == str(other)
  
 
 class ProgrammeInfo:
@@ -338,12 +381,12 @@ class Link:
     This may be additional content, data, or interaction related to the parent element.
     """    
         
-    def __init__(self, uri, content=None, description=None, expiry=None, locale=None):
+    def __init__(self, uri, content=None, description=None, expiry=None, language=None):
         self.uri = uri
         self.content = content
         self.description = description
         self.expiry = expiry
-        self.locale = locale
+        self.language = language
         
     def __str__(self):
         return self.uri
@@ -485,7 +528,7 @@ class Multimedia:
     LOGO_COLOUR_SQUARE = "logo_colour_square"
     LOGO_COLOUR_RECTANGLE = "logo_colour_rectangle"
     
-    def __init__(self, url, type=LOGO_UNRESTRICTED, content=None, height=None, width=None, locale=locale.getdefaultlocale()):
+    def __init__(self, url, type=LOGO_UNRESTRICTED, content=None, height=None, width=None, language=None):
         self.url = url
         self.type = type
         self.content = content
@@ -493,7 +536,7 @@ class Multimedia:
         self.width = width
         if type == Multimedia.LOGO_UNRESTRICTED and (not height or not width or not content):
             raise ValueError('an unrestricted logo must have height, width and content type defined') 
-        self.locale = locale
+        self.language = language
         
 class Programme(Named, Described):
     """Describes and locates a programme.
@@ -523,7 +566,17 @@ class Programme(Named, Described):
         self.links = []
         self.events = []
         
-               
+    def get_bearers(self):
+        """return a list of bearers collated from the locations of this programme"""
+
+        bearers = []
+        for location in self.locations:
+            bearers.extend(location.bearers)
+        result = [] # remove diplicates now
+        for bearer in bearers:
+            if bearer not in result: result.append(bearer)
+        return result
+            
     def get_times(self):
         """returns a list of (datetime, timedelta) tuples collated from the billed times of the locations
            of this programme"""
@@ -573,18 +626,33 @@ class ProgrammeEvent(Named, Described):
     def __repr__(self):
         return '<ProgrammeEvent: %s>' % str(self)
     
-    
+class Scope:
+    """
+    Contains the scope of the proposed schedule, in terms of time and bearers
+    """
+
+    def __init__(self, start, end, bearers=[]):
+        """
+        :param start: Scope start time, if not specified this is calculated from the programmes
+        :type start: datetime
+        :param end: Scope end time if not specified, this is calculated from the programmes
+        :type end: datetime
+        :param bearers: Bearers within the scope
+        :type bearers: list
+        """
+        self.start = start
+        self.end = end
+        self.bearers = bearers
+
 class Schedule:
     """
     Contains programmes within a given time period.
     """
     
-    def __init__(self, start=None, end=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
-        """
-        :param start: Scope start time
-        :type start: datetime
-        :param end: Scope end time
-        :type end: datetime
+    def __init__(self, scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
+        """x
+        :param scope: Defined scope, otherwise proposed from the schedule
+        :type scope: Scope
         :param created: Creation time of this element
         :type created: datetime
         :param version: Schedule version
@@ -592,15 +660,60 @@ class Schedule:
         :param originator: Originator of the schedule
         :type originator: string
         """
+        self.scope = scope
         self.created = created
         self.version = version
         self.originator = originator
-        self.scope = (start, end)
         self.programmes = []
+
+    def get_scope(self):
+        if self.scope is not None: return scope
+
+        scope_start = scope_end = None
+        bearers = []
+
+        for programme in self.programmes:
+            for time in programme.get_times():
+                start, duration = time
+                end = start + duration
+                if scope_start is None or start < scope_start: scope_start = start
+                if scope_end is None or end > scope_end: scope_end = end
+            for b in programme.get_bearers(): # remove duplicates
+                if b not in bearers: bearers.append(b)
+
+        return Scope(scope_start, scope_end, bearers)
+
+class Lookup():
+    """
+    Contains RadioDNS Lookup parameters.
+    """
+
+    def __init__(self, fqdn, serviceIdentifier):
+        """
+        :param fqdn: RadioDNS Lookup FQDN
+        :type fqdn: string
+        :param serviceIdentifier: RadioDNS Lookup ServiceIdentifier
+        :type serviceIdentifier: string
+        """
+        self.fqdn = fqdn
+        self.serviceIdentifier = serviceIdentifier
+
+    def __str__(self):
+        return "%s/%s" % (self.fqdn, self.serviceIdentifier)
+
+    def __repr__(self):
+        return '<Lookup: %s>' % self
+
+    @classmethod
+    def fromstring(cls, string):
+        from urllib.parse import urlparse
+        p = urlparse(string)
+        lookup = Lookup(p.netloc, p.path[1:]) # probably a bit hacky
+        return lookup
         
 class Service(Named, Described, Geolocated):
     
-    def __init__(self, media=None, genres=None, links=None, keywords=None, lookup=None, version=1):
+    def __init__(self, media=None, genres=None, links=None, keywords=None, lookup : Lookup=None, version=1):
         """
         Service definition
         
@@ -636,7 +749,7 @@ class Service(Named, Described, Geolocated):
         
 class ServiceInfo:
     
-    def __init__(self, created=datetime.datetime.now(tzlocal()), version=1, originator=None, provider=None):
+    def __init__(self, created=datetime.datetime.now(tzlocal()), version=1, originator=None, provider=None, language=DEFAULT_LANGUAGE):
         """
         Top-level Service Information document object
 
@@ -653,6 +766,7 @@ class ServiceInfo:
         self.version = version
         self.originator = originator
         self.provider = provider
+        self.language = language
         self.services = []
         self.groups = []
          
