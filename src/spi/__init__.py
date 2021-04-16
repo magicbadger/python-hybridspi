@@ -649,7 +649,7 @@ class Schedule:
     Contains programmes within a given time period.
     """
     
-    def __init__(self, scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
+    def __init__(self, scope : Scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
         """x
         :param scope: Defined scope, otherwise proposed from the schedule
         :type scope: Scope
@@ -660,6 +660,7 @@ class Schedule:
         :param originator: Originator of the schedule
         :type originator: string
         """
+        if type(scope) is not Scope: raise ValueError("scope must be a Scope object")
         self.scope = scope
         self.created = created
         self.version = version
@@ -667,7 +668,7 @@ class Schedule:
         self.programmes = []
 
     def get_scope(self):
-        if self.scope is not None: return scope
+        if self.scope is not None: return self.scope
 
         scope_start = scope_end = None
         bearers = []
