@@ -22,19 +22,19 @@ from dabepg.xml import unmarshall
 
 pi = unmarshall(open('PI.xml'))
 
-print 'Scope:', pi.schedule.get_scope()
-print '='* 40
+print('Scope:', pi.schedule.get_scope())
+print('='* 40)
 for programme in pi.schedule.programmes:
-    print programme
+    print(programme)
     for location in programme.locations:
-        print '\t', ','.join([str(x) for x in location.times])
-        print '\t', ','.join([str(x) for x in location.bearers])
+        print('\t', ','.join([str(x) for x in location.times]))
+        print('\t', ','.join([str(x) for x in location.bearers]))
     for media in programme.media:
-        print media
+        print(media)
     for genre in programme.genres:
-        print genre
+        print(genre)
     for link in programme.links:
-        print link
+        print(link)
     for keyword in programme.keywords:
-        print keyword
-    print
+        print(keyword)
+    print()

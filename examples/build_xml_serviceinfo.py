@@ -40,7 +40,7 @@ provider.geolocations.append(Point(51.473939, -2.508112))
 
 info = ServiceInfo(originator='Global Radio', 
                    provider=provider, 
-                   created=datetime.datetime(2014, 04, 25, 0, 50, 31, 0))
+                   created=datetime.datetime(2014, 0o4, 25, 0, 50, 31, 0))
 
 # Capital London 
 service = Service()
@@ -79,7 +79,7 @@ service.bearers.append(DabBearer(0xe1, 0xc185, 0xc479, 0x0, content='audio/mpeg'
 service.bearers.append(FmBearer(0xe1, 0xc479, 95800, cost=30)) 
 service.bearers.append(IpBearer('http://media-ice.musicradio.com/Capital', content='audio/aacp', offset=4000, cost=40, bitrate=48))
 service.bearers.append(IpBearer('http://media-ice.musicradio.com/CapitalMP3Low', content='audio/mpeg', offset=4000, cost=40, bitrate=48))
-service.lookup = 'http://www.capitalfm.com/london'
+service.lookup = Lookup.fromstring('http://www.capitalfm.com/london')
 service.geolocations.append(Country('GB'))
 service.geolocations.append(Polygon.fromstring('51.524124 -2.709503 51.572803 -2.668304 51.616310 -2.572174 51.575363 -2.412872 51.504471 -2.379913 51.426613 -2.471924 51.400063 -2.460937 51.387211 -2.511749 51.328896 -2.708130 51.273087 -2.772675 51.238705 -2.938843 51.258476 -3.036346 51.376068 -3.026733 51.472401 -2.859879 51.524124 -2.709503'))
 info.services.append(service)
@@ -115,4 +115,4 @@ group.services.append(service)
 info.groups.append(group)
 
 
-print marshall(info, indent='\t')
+print(marshall(info))

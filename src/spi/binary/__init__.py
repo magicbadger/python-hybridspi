@@ -29,7 +29,6 @@ import sys
 
 logger = logging.getLogger("spi.binary")
 
-
 class Ensemble:
     """
     Describes a DAB ensemble 
@@ -78,8 +77,8 @@ class Element:
         for attribute in self.attributes: 
             logger.debug('rendering attribute: %s', attribute)
             try: data += attribute.tobytes()
-            except Exception, e: 
-                raise ValueError, 'error rendering attribute %s of %s: %s' % (attribute, self, str(e)), sys.exc_info()[2] 
+            except Exception as e: 
+                raise ValueError('error rendering attribute %s of %s: %s' % (attribute, self, str(e))).with_traceback(sys.exc_info()[2]) 
 
         # encode children
         for child in self.children: 
@@ -159,6 +158,7 @@ class Element:
         e = Element(tag)
         logger.debug('parsing data of length %d bytes for element with tag 0x%02x', datalength, tag)
         while i < data.length():
+            logger.debug('now parsing at offset %d / %d', i/8, data.length()/8)
             child_tag = int(data[i:i+8].to01(), 2)            
             child_datalength = int(data[i+8:i+16].to01(), 2)
             start = 16
@@ -168,37 +168,46 @@ class Element:
             elif child_datalength == 0xff: 
                 child_datalength = int(data[i+16:i+40].to01(), 2)
                 start = 40
-            logger.debug('child tag 0x%02x for parent 0x%02x at offset %d has data length of %d bytes', child_tag, tag, i/8, child_datalength)
+            logger.debug('child with tag 0x%02x for parent tag 0x%02x at offset %d has data length of %d bytes', child_tag, tag, i/8, child_datalength)
             end = start + (child_datalength * 8)
             if i + end > data.length():
-                raise ValueError('end of data for tag 0x%02x at offset %d requested is beyond length: %d > %d: %s' % (child_tag, i/8, (i + end)/8, data.length() / 8, bitarray_to_hex(data[i:i+64])))
+                raise ValueError('end of data for element with tag 0x%02x at offset %d requested is beyond length: %d > %d: %s' % (child_tag, i/8, (i + end)/8, data.length() / 8, bitarray_to_hex(data[i:i+64])))
             child_data = data[i + start : i + end] 
-            if child_data.length() < 16*8: logger.debug('child tag 0x%02x for parent 0x%02x has data: %s', child_tag, tag, bitarray_to_hex(child_data))
+            if child_data.length() < 16*8: logger.debug('child element with tag 0x%02x for parent 0x%02x has data: %s', child_tag, tag, bitarray_to_hex(child_data))
                 
             # attributes
             if child_tag >= 0x80 and child_tag <= 0x87:
+                logger.debug('parsing child as an attribute')
                 attribute = Attribute.frombits(tag, data[i:i+end])
+                logger.debug('parsed child as an attribute: %s', attribute)
                 e.attributes.append(attribute)
             # token table
             elif child_tag == 0x04:
+                logger.debug('parsing child as a token table')
                 tokens = decode_tokentable(child_data)
                 e.tokens = tokens
                 logger.debug('parsed token table: %s', tokens)
             # default content ID
             elif child_tag == 0x05:
+                logger.debug('parsing child as a default content ID')
                 default_contentid = decode_contentid(child_data)
                 e.default_contentid = default_contentid
             # default language
             elif child_tag == 0x06: 
+                logger.debug('parsing child as a default language (not yet implemented)')
                 pass               
             # children
             elif child_tag >= 0x02 and child_tag <= 0x36:
+                logger.debug('parsing child as an element')
                 child = Element.frombits(data[i:i+end])
                 child.parent = e
+                logger.debug('parsed child as an element: %s', child)
                 e.children.append(child)
             # cdata
             elif child_tag == 0x01:
+                logger.debug('parsing child as CDATA')
                 cdata = CData.frombits(data[i:i+end])
+                logger.debug('parsed CDATA: %s', cdata)
                 e.cdata = cdata
             else:
                 raise ValueError('unknown element 0x%02x under parent 0x%02x' % (child_tag, tag))
@@ -322,10 +331,11 @@ class Attribute:
         elif (parent_tag, tag) in [ # string
                 (0x14, 0x80), (0x17, 0x80), (0x18, 0x80), (0x18, 0x83), (0x1c, 0x80), (0x20, 0x80), (0x20, 0x82), 
                 (0x21, 0x82), (0x03, 0x82), (0x03, 0x83), (0x2b, 0x80), (0x2b, 0x82), (0x2e, 0x80), (0x31, 0x80), 
-                (0x31, 0x81), (0x29, 0x82), (0x18, 0x81), (0x18, 0x83)
+                (0x31, 0x81), (0x29, 0x82), (0x18, 0x81), (0x18, 0x83), (0x10, 0x80), (0x11, 0x80), (0x12, 0x80),
+                (0x20, 0x86), (0x2a, 0x80), (0x2b, 0x81), (0x1a, 0x80), (0x1b, 0x80), (0x06, 0x80)
         ]:
             logger.debug('decoding tag/attribute 0x%02x/0x%02x as string', parent_tag, tag)
-            value = data.tostring()
+            value = data.tobytes().decode()
         elif (parent_tag, tag) in [(0x2c, 0x81), (0x2c, 0x83), (0x2f, 0x80), (0x2f, 0x81)]: # duration
             logger.debug('decoding tag/attribute 0x%02x/0x%02x as duration', parent_tag, tag)
             value = datetime.timedelta(seconds=int(data.to01(), 2))
@@ -377,7 +387,7 @@ def encode_genre(genre):
     # b0-3: RFU(0)
     # b4-7: CS
     cs = segments[4]
-    if cs in genre_map.keys(): cs_val = genre_map[cs]
+    if cs in list(genre_map.keys()): cs_val = genre_map[cs]
     else: raise ValueError('unknown CS in genre: %s' % cs)
     bits += encode_number(cs_val, 4)
     
@@ -393,7 +403,7 @@ def decode_genre(bits):
     
     # b4-7: CS
     cs_val = int(bits[4:8].to01(), 2)
-    if cs_val in genre_map.values(): cs = [x[0] for x in genre_map.items() if x[1] == cs_val]
+    if cs_val in list(genre_map.values()): cs = [x[0] for x in list(genre_map.items()) if x[1] == cs_val]
     else: raise ValueError('unknown CS value for genre: %d' % cs_val)
     
     level = '%d' % cs_val
@@ -408,10 +418,10 @@ def decode_genre(bits):
     
     return Genre('urn:tva:metadata:cs:ContentCS:2002:%s' % level)
 
-def encode_string(string):
-    data = bitarray()
-    data.fromstring(string)
-    return data
+def encode_string(s):
+    b = bitarray()
+    b.frombytes(s.encode())
+    return b
     
 def encode_timepoint(timepoint):
     
@@ -535,8 +545,7 @@ def encode_bearer(bearer):
             bits += encode_number(bearer.xpad, 8)
 
     elif isinstance(bearer, IpBearer):
-        bits = bitarray()
-        bits.fromstring(bearer.uri)
+        return encode_string(bearer.uri)
     else:
         raise ValueError('bearer %s not currently supported', bearer)
 
@@ -616,7 +625,7 @@ def decode_tokentable(bits):
     while i < bits.length():
         tag = int(bits[i:i+8].to01(), 2)
         length = int(bits[i+8:i+16].to01(), 2)
-        data = bits[i+16:i+16+(length*8)].tostring()
+        data = bits[i+16:i+16+(length*8)].tobytes().decode(DEFAULT_ENCODING)
         tokens[tag] = data
         i += 16 + (length * 8)
     return tokens
@@ -640,7 +649,7 @@ def decode_enum(parent_tag, tag, bits):
     
     value = int(bits.to01(), 2)
     key = (parent_tag, tag, value)
-    if key in enum_values.keys():
+    if key in list(enum_values.keys()):
         return enum_values.get(key)
     else:
         raise NotImplementedError('enum for parent/attribute 0x%02x/0x%02x not implemented' % (parent_tag, tag))
@@ -659,12 +668,12 @@ class CData:
     def tobytes(self):
         # b0-b7: element tag
         bits = bitarray()
-        bits.frombytes('\x01')
+        bits.frombytes(b'\x01')
   
         # b8-15: element data length (0-253 bytes)
         # b16-31: extended element length (256-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
-        datalength = len(self.value)
+        datalength = len(self.value.encode()) # ensure we get the right count for the encoding
         if datalength <= 253:
             tmp = encode_number(datalength, 8)
             bits += tmp
@@ -682,7 +691,7 @@ class CData:
             bits += tmp
         else: raise ValueError('element data length exceeds the maximum allowed by the extended element length (24bits): %s > %s' + datalength + " > " + (1<<24))
         tmp = bitarray()
-        tmp.frombytes(self.value.encode('utf-8'))
+        tmp.frombytes(self.value.encode())
         bits += tmp
         
         return bits
@@ -709,12 +718,14 @@ class CData:
             raise ValueError('element data length exceeds the maximum allowed by the extended element length (24bits): %s > %s' + datalength + " > " + (1<<24))
         data = bits[start:start+(datalength * 8)]
         
-        return CData(data.tostring())
+        return CData(data.tobytes().decode())
 
 def marshall(obj, **kwargs):
     """Marshalls an :class:Epg or :class:ServiceInfo to its binary document"""    
-    if isinstance(obj, ServiceInfo): return marshall_serviceinfo(obj, kwargs.get('ensemble', None))
-    elif isinstance(obj, ProgrammeInfo): return marshall_programmeinfo(obj)
+    b = None
+    if isinstance(obj, ServiceInfo): b = marshall_serviceinfo(obj, kwargs.get('ensemble', None))
+    elif isinstance(obj, ProgrammeInfo): b = marshall_programmeinfo(obj)
+    return b.tobytes()
     
 def marshall_serviceinfo(info, ensemble):
  
@@ -725,24 +736,34 @@ def marshall_serviceinfo(info, ensemble):
     if info.originator: info_element.attributes.append(Attribute(0x82, info.originator, encode_string))
     if info.provider: info_element.attributes.append(Attribute(0x83, info.provider, encode_string))
 
+    # default language
+    default_language_element = Element(0x06)
+    default_language_element.attributes.append(Attribute(0x80, DEFAULT_LANGUAGE, encode_string)) # TODO make this configurable in a better way
+    info_element.children.append(default_language_element)
+
     # ensemble
     if ensemble is None: raise ValueError('must specify an ensemble')
     ensemble_element = build_ensemble(ensemble, info.services)
 
     info_element.children.append(ensemble_element)
 
-    return info_element.tobytes().tobytes()
+    return info_element.tobytes()
 
 def marshall_programmeinfo(info):
     
     # epg (default type is DAB, so no need to encode)
     epg_element = Element(0x02)
+
+    # default language
+    default_language_element = Element(0x06)
+    default_language_element.attributes.append(Attribute(0x80, DEFAULT_LANGUAGE, encode_string)) # TODO make this configurable in a better way
+    epg_element.children.append(default_language_element)    
      
     for schedule in info.schedules:
         schedule_element = build_schedule(schedule)
         epg_element.children.append(schedule_element)
 
-    return epg_element.tobytes().tobytes()
+    return epg_element.tobytes()
 
 def build_schedule(schedule): 
     
@@ -819,6 +840,8 @@ def build_name(name):
     elif isinstance(name, MediumName): name_element = Element(0x11)
     elif isinstance(name, LongName): name_element = Element(0x12)
     name_element.cdata = CData(name.text)
+    if name.language is not None and name.language is not DEFAULT_LANGUAGE: # TODO this should do a comparison with the language of the document
+        name_element.attributes.append(Attribute(0x80, name.language, encode_string))
     return name_element
     
 def build_location(location):
@@ -856,11 +879,12 @@ def build_description(description):
     if isinstance(description, ShortDescription):
         description_element = Element(0x1a)
         description_element.cdata = CData(description.text)
-        mediagroup_element.children.append(description_element)            
     elif isinstance(description, LongDescription):
         description_element = Element(0x1b)
-        description_element.cdata = CData(description.text)  
-        mediagroup_element.children.append(description_element)
+        description_element.cdata = CData(description.text)        
+    if description.language is not None and description.language is not DEFAULT_LANGUAGE: # TODO this should do a comparison with the language of the document
+        description_element.attributes.append(Attribute(0x80, description.language, encode_string))
+    mediagroup_element.children.append(description_element)
     return mediagroup_element
 
 def build_mediagroup(media):
@@ -983,7 +1007,7 @@ def build_service(service):
 
     # radiodns lookup
     if service.lookup:
-        from urlparse import urlparse
+        from urllib.parse import urlparse
         url = urlparse(service.lookup)
         lookup_element = Element(0x31)
         lookup_element.attributes.append(Attribute(0x80, url.netloc, encode_string))
@@ -993,7 +1017,7 @@ def build_service(service):
     return service_element
 
 def build_keywords(keywords):
-    keywords_element = Element(0x16) # TODO set non-english locale
+    keywords_element = Element(0x16) # TODO encode langauges
     keywords_element.cdata = CData(",".join(keywords))
     return keywords_element
 
@@ -1049,9 +1073,9 @@ def apply_token_table(val, e):
     return val        
 
 def print_info(e):
-    print e.attributes
-    print e.children
-    print e.cdata
+    print(e.attributes)
+    print(e.children)
+    print(e.cdata)
 
 def parse_time(e):
     billed_time = e.get_attributes(0x80)[0].value
@@ -1107,24 +1131,34 @@ def parse_programme(e):
     # names
     for c in e.get_children(0x10):
         val = apply_token_table(c.cdata.value, e)
-        programme.names.append(ShortName(val))
+        name = ShortName(val)
+        if(c.has_attribute(0x80)): name.language = c.get_attributes(0x80)[0].value
+        programme.names.append(name)
     for c in e.get_children(0x11):
         val = apply_token_table(c.cdata.value, e)
-        programme.names.append(MediumName(val))
+        name = MediumName(val)        
+        if(c.has_attribute(0x80)): name.language = c.get_attributes(0x80)[0].value
+        programme.names.append(name)
     for c in e.get_children(0x12):
         val = apply_token_table(c.cdata.value, e)
-        programme.names.append(LongName(val))  
+        name = LongName(val)
+        if(c.has_attribute(0x80)): name.language = c.get_attributes(0x80)[0].value
+        programme.names.append(name)
         
     # media
     for c in e.get_children(0x13):
         # short description
         for d in c.get_children(0x1a):
             val = apply_token_table(d.cdata.value, e)
-            programme.descriptions.append(ShortDescription(val))
+            description = ShortDescription(val)
+            if(d.has_attribute(0x80)): description.language = d.get_attributes(0x80)[0].value
+            programme.descriptions.append()
         # long description
         for d in c.get_children(0x1b):
             val = apply_token_table(d.cdata.value, e)
-            programme.descriptions.append(LongDescription(val))
+            description = LongDescription(val)
+            if(d.has_attribute(0x80)): description.language = d.get_attributes(0x80)[0].value
+            programme.descriptions.append(description)
         # multimedia
         for d in c.get_children(0x2b):
             url = d.get_attributes(0x82)[0].value
@@ -1215,16 +1249,16 @@ def parse_service_information(e):
     return service_info, ensemble
     
 def encode_number(i, n):
-    if not isinstance(i, (int, long, float, complex)): raise ValueError('value must be a number (%s is %s)' % (i, type(i)))
-    if not isinstance(n, (int, long, float, complex)): raise ValueError('bitlength must be a number')
-    i = long(i)
-    n = long(n)
-    return bitarray(tuple((0,1)[i>>j & 1] for j in xrange(n-1,-1,-1)))
+    if not isinstance(i, (int, float, complex)): raise ValueError('value must be a number (%s is %s)' % (i, type(i)))
+    if not isinstance(n, (int, float, complex)): raise ValueError('bitlength must be a number')
+    i = int(i)
+    n = int(n)
+    return bitarray(tuple((0,1)[i>>j & 1] for j in range(n-1,-1,-1)))
 
 def bitarray_to_hex(bits):
     rows = []
     for i in range(0, len(bits), 256):
-        rows.append(' '.join(["%02X" % ord(x) for x in bits[i:i+256].tobytes()]).strip())
+        rows.append(' '.join(["%02X" %x for x in bits[i:i+256].tobytes()]).strip())
     return '\r\n'.join(rows)
 
 def hex_to_bitarray(hex):
@@ -1251,16 +1285,11 @@ def unmarshall(i):
     
     logger.debug('unmarshalling object of type: %s', type(i))
     
+    import io
     b = bitarray()
-    if isinstance(i, file):
+    if isinstance(i, io.IOBase):
         logger.debug('object is a file')
-        import StringIO
-        io = StringIO.StringIO()
-        d = i.read()
-        while d:
-            io.write(d)
-            d = i.read()
-        b.frombytes(io.getvalue()) 
+        b.fromfile(i)
     else:
         logger.debug('object is a string of %d bytes', len(str(i)))
         b.frombytes(i)

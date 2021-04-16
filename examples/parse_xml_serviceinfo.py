@@ -23,6 +23,6 @@ from spi.xml import unmarshall
 info = unmarshall(open('SI.xml'))
 
 for service in info.services:
-    print service
+    print(service)
     for bearer in service.bearers:
-        print bearer
+        print(bearer)
