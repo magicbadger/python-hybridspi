@@ -1,24 +1,3 @@
-#===============================================================================
-# Python Hybrid Radio SPI - API to support ETSI TS 102 818
-# 
-# Copyright (C) 2010 Global Radio
-# Copyright (C) 2015 Ben Poor
-# 
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 2.1 of the License, or (at your option) any later version.
-# 
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-#===============================================================================
-
 from spi import *
 from spi.binary import marshall, Ensemble
 from spi.binary.bands import *
@@ -30,7 +9,7 @@ import logging
 
 info = ServiceInfo(originator='Global Radio', 
                    provider='Global Radio', 
-                   created=datetime.datetime(2014, 04, 25, 0, 50, 31, 0))
+                   created=datetime.datetime(2014, 4, 25, 0, 50, 31, 0))
 
 # Ensemble
 ensemble = Ensemble(0xe1, 0xc479)
@@ -109,5 +88,5 @@ group.links.append(Link('http://en.wikipedia.org/wiki/Capital_(radio_network)"',
 group.services.append(service)
 info.groups.append(group)
 
-
-print marshall(info, ensemble=ensemble)
+import sys
+sys.stdout.buffer.write(marshall(info, ensemble=ensemble))

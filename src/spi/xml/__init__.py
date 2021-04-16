@@ -22,7 +22,7 @@ from spi import *
 import xml.dom.minidom
 import isodate
 from xml.dom import XML_NAMESPACE
-from urlparse import urlparse
+from urllib.parse import urlparse
 import logging
 
 SCHEMA_NS = 'http://www.worlddab.org/schemas/spi/31'
@@ -36,6 +36,11 @@ logger = logging.getLogger('spi.xml')
 class MarshallListener:
     
     def on_element(self, doc, obj, element):
+        pass
+
+class UnmarshallListener:
+
+    def on_element(self, element):
         pass
     
 def marshall(obj, listener=MarshallListener(), indent=None, **kwargs):
@@ -66,13 +71,13 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
     if info.version > 1: root.setAttribute('version', str(info.version))
     if info.created: root.setAttribute('creationTime', info.created.replace(microsecond=0).isoformat())
     if info.originator: root.setAttribute('originator', info.originator)
-    if info.provider and isinstance(info.provider, basestring): root.setAttribute('serviceProvider', info.provider)   
+    if info.provider and isinstance(info.provider, str): root.setAttribute('serviceProvider', info.provider)   
     
     # fudge the namespaces in there
     root.setAttribute('xmlns', SCHEMA_NS)
     root.setAttribute('xmlns:xsi', XSI_NS)
     root.setAttribute('xsi:schemaLocation', '%s %s' % (SCHEMA_NS, SCHEMA_XSD))
-    root.setAttribute('xml:lang', 'en')
+    root.setAttribute('xml:lang', 'en') # encode non-english languages
 
     # services
     services_element = doc.createElement('services')
@@ -131,11 +136,9 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
             service_element.appendChild(build_bearer(doc, bearer, listener))
         # lookup
         if service.lookup:
-            from urlparse import urlparse
-            url = urlparse(service.lookup)
             lookup_element = doc.createElement('radiodns')
-            lookup_element.setAttribute('host', url.netloc)
-            lookup_element.setAttribute('serviceIdentifier', url.path[1:])
+            lookup_element.setAttribute('fqdn', service.lookup.fqdn)
+            lookup_element.setAttribute('serviceIdentifier', service.lookup.serviceIdentifier)
             listener.on_element(doc, service.lookup, lookup_element)
             service_element.appendChild(lookup_element)
         # geolocation
@@ -152,9 +155,9 @@ def marshall_serviceinfo(info, listener=MarshallListener(), indent=None, **kwarg
     doc.appendChild(root)
         
     if indent:
-        return doc.toprettyxml(indent=indent, encoding='UTF-8')
+        return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml('UTF-8')
+        return doc.toprettyxml()
 
 def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
     """
@@ -179,73 +182,85 @@ def marshall_programmeinfo(info, listener=MarshallListener(), indent=None):
     
     # schedule
     for schedule in info.schedules:
-        schedule_element = doc.createElement('schedule')
+        schedule_element = build_schedule(doc, schedule, listener)
+        listener.on_element(doc, schedule_element, epg_element)
         epg_element.appendChild(schedule_element)
-        if schedule.version > 1: schedule_element.setAttribute('version', str(schedule.version))
-        schedule.created = schedule.created.replace(microsecond=0)
-        schedule_element.setAttribute('creationTime', schedule.created.isoformat())
-        if schedule.originator is not None:
-            schedule_element.setAttribute('originator', schedule.originator)
-            
-        # scope
-        scope_element = doc.createElement('scope')
-        scope_element.setAttribute('startTime', schedule.start.isoformat())
-        scope_element.setAttribute('stopTime', schedule.end.isoformat())
-        listener.on_element(doc, schedule, scope_element)
-        schedule_element.appendChild(scope_element)
-        
-        # programmes
-        for programme in schedule.programmes:
-            programme_element = doc.createElement('programme')
-            programme_element.setAttribute('shortId', str(programme.shortcrid))
-            programme_element.setAttribute('id', str(programme.crid))
-            if programme.version > 1:
-                programme_element.setAttribute('version', str(programme.version))
-            if programme.recommendation:
-                programme_element.setAttribute('recommendation', 'yes')
-            # names
-            for name in programme.names:
-                child = build_name(doc, name, listener)
-                programme_element.appendChild(child)
-            # locations
-            for location in programme.locations:
-                child = build_location(doc, location, listener)
-                programme_element.appendChild(child)    
-            # descriptions
-            for description in programme.descriptions:
-                child = build_description(doc, description, listener)
-                programme_element.appendChild(child)
-            # media
-            for media in programme.media:
-                child = build_mediagroup(doc, media, listener)
-                programme_element.appendChild(child)     
-            # genre
-            for genre in programme.genres:
-                child = build_genre(doc, genre, listener)
-                programme_element.appendChild(child)    
-            # membership
-            for membership in programme.memberships:
-                child = build_membership(doc, membership, listener)
-                programme_element.appendChild(child)    
-            # link
-            for link in programme.links:
-                child = build_link(doc, link, listener)
-                programme_element.appendChild(child)      
-            # events
-            for event in programme.events:
-                child = build_programme_event(doc, event, listener)
-                programme_element.appendChild(child) 
-                
-            schedule_element.appendChild(programme_element)
-                
-            listener.on_element(doc, programme, programme_element)
-            
+
     listener.on_element(doc, info, epg_element)
         
     if indent:
-        return doc.toprettyxml(indent=indent, encoding='UTF-8')
+        return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml('UTF-8')
+        return doc.toxml()        
+        
+def build_schedule(doc, schedule, listener):
+    
+    schedule_element = doc.createElement('schedule')
+    if schedule.version > 1: schedule_element.setAttribute('version', str(schedule.version))
+    schedule.created = schedule.created.replace(microsecond=0)
+    schedule_element.setAttribute('creationTime', schedule.created.isoformat())
+    if schedule.originator is not None:
+        schedule_element.setAttribute('originator', schedule.originator)
+        
+    # scope
+    scope = schedule.get_scope()
+    scope_element = doc.createElement('scope')
+    scope_element.setAttribute('startTime', scope.start.isoformat())
+    scope_element.setAttribute('stopTime', scope.end.isoformat())
+    listener.on_element(doc, schedule, scope_element)
+    schedule_element.appendChild(scope_element)
+    
+    # programmes
+    for programme in schedule.programmes:
+        programme_element = build_programme(doc, programme, listener)
+        listener.on_element(doc, programme_element, schedule_element)
+        schedule_element.appendChild(programme_element)
+
+    return schedule_element
+
+def build_programme(doc, programme, listener):
+    programme_element = doc.createElement('programme')
+    programme_element.setAttribute('shortId', str(programme.shortcrid))
+    programme_element.setAttribute('id', str(programme.crid))
+    if programme.version > 1:
+        programme_element.setAttribute('version', str(programme.version))
+    if programme.recommendation:
+        programme_element.setAttribute('recommendation', 'yes')
+    # names
+    for name in programme.names:
+        child = build_name(doc, name, listener)
+        programme_element.appendChild(child)
+    # locations
+    for location in programme.locations:
+        child = build_location(doc, location, listener)
+        programme_element.appendChild(child)    
+    # descriptions
+    for description in programme.descriptions:
+        child = build_description(doc, description, listener)
+        programme_element.appendChild(child)
+    # media
+    for media in programme.media:
+        child = build_mediagroup(doc, media, listener)
+        programme_element.appendChild(child)     
+    # genre
+    for genre in programme.genres:
+        child = build_genre(doc, genre, listener)
+        programme_element.appendChild(child)    
+    # membership
+    for membership in programme.memberships:
+        child = build_membership(doc, membership, listener)
+        programme_element.appendChild(child)    
+    # link
+    for link in programme.links:
+        child = build_link(doc, link, listener)
+        programme_element.appendChild(child)      
+    # events
+    for event in programme.events:
+        child = build_programme_event(doc, event, listener)
+        programme_element.appendChild(child) 
+        
+    return programme_element      
+
     
 def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
     """
@@ -320,9 +335,9 @@ def marshall_groupinfo(info, listener=MarshallListener(), indent=None):
     listener.on_element(doc, info, epg_element)
         
     if indent:
-        return doc.toprettyxml(indent=indent, encoding='UTF-8')
+        return doc.toprettyxml(indent=indent)
     else:
-        return doc.toxml('UTF-8')
+        return doc.toxml()
  
 
 
@@ -338,7 +353,8 @@ def build_name(doc, name, listener):
     listener.on_element(doc, name, name_element)
     return name_element
 
-def build_bearer(doc, bearer, listener):
+def build_bearer(doc, bearer: Bearer, listener):
+    if bearer is None: raise TypeError("a valid bearer must be defined")
     bearer_element = doc.createElement('bearer')
     bearer_element.setAttribute('id', str(bearer))
     if bearer.cost:
@@ -504,18 +520,18 @@ def get_iso_period(duration):
 def get_schedule_filename(date, id):
     return '%s_%02x_%04x_%04x_%x_PI.xml' % (date.strftime('%Y%m%d'), id.ecc, id.eid, id.sid, id.scids)
 
-def parse_serviceinfo(root):
+def parse_serviceinfo(root, listener):
     logger.debug('parsing service information')
     info = ServiceInfo()
-    if root.attrib.has_key('creationTime'): info.created = isodate.parse_datetime(root.attrib['creationTime'])
-    if root.attrib.has_key('version'): info.version = int(root.attrib['version'])
-    if root.attrib.has_key('originator'): info.originator = root.attrib['originator']
-    if root.attrib.has_key('serviceProvider'): info.provider = root.attrib['serviceProvider']
-    if not root.attrib.has_key('{%s}lang' % XML_NAMESPACE): raise Exception('no xml:lang attribute declaration')
+    if 'creationTime' in root.attrib: info.created = isodate.parse_datetime(root.attrib['creationTime'])
+    if 'version' in root.attrib: info.version = int(root.attrib['version'])
+    if 'originator' in root.attrib: info.originator = root.attrib['originator']
+    if 'serviceProvider' in root.attrib: info.provider = root.attrib['serviceProvider']
+    if '{%s}lang' % XML_NAMESPACE not in root.attrib: raise Exception('no xml:lang attribute declaration')
    
     # only one <services> element is supported for now 
     for service_element in root.find("spi:services", namespaces).findall("spi:service", namespaces):
-        info.services.append(parse_service(service_element))
+        info.services.append(parse_service(service_element, listener))
     
     return info
 
@@ -523,19 +539,20 @@ def parse_time(timeElement):
     if timeElement.tag == '{%s}time' % SCHEMA_NS:
         time = Time(isodate.parse_datetime(timeElement.attrib['time']),
                     isodate.parse_duration(timeElement.attrib['duration']),
-                    isodate.parse_datetime(timeElement.attrib.get('actualTime')) if timeElement.attrib.has_key('actualTime') else None,
-                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if timeElement.attrib.has_key('actualDuration') else None)
+                    isodate.parse_datetime(timeElement.attrib.get('actualTime')) if 'actualTime' in timeElement.attrib else None,
+                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if 'actualDuration' in timeElement.attrib else None)
         return time
     if timeElement.tag == '{%s}relativeTime' % SCHEMA_NS:
         time = RelativeTime(isodate.parse_duration(timeElement.attrib['time']),
                     isodate.parse_duration(timeElement.attrib['duration']),
-                    isodate.parse_duration(timeElement.attrib.get('actualTime')) if timeElement.attrib.has_key('actualTime') else None,
-                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if timeElement.attrib.has_key('actualDuration') else None)
+                    isodate.parse_duration(timeElement.attrib.get('actualTime')) if 'actualTime' in timeElement.attrib else None,
+                    isodate.parse_duration(timeElement.attrib.get('actualDuration')) if 'actualDuration' in timeElement.attrib else None)
         return time
     else:
         raise ValueError('unknown time element: %s' % timeElement)
 
-def parse_bearer(bearer_element):
+def parse_bearer(bearer_element, listener):
+    listener.on_element(bearer_element)
     uri = bearer_element.attrib['id']
     try:
         if uri.startswith('dab'):
@@ -550,13 +567,13 @@ def parse_bearer(bearer_element):
         bearer = IpBearer("http://null/")
         logger.debug('bearer %s is malformed', uri)
 
-    if bearer_element.attrib.has_key('cost'):
+    if 'cost' in bearer_element.attrib:
         bearer.cost = int(bearer_element.attrib['cost'])
-    if bearer_element.attrib.has_key('offset'):
+    if 'offset' in bearer_element.attrib:
         bearer.offset = int(bearer_element.attrib['offset'])
-    if bearer_element.attrib.has_key('bitrate'):
+    if 'bitrate' in bearer_element.attrib:
         bearer.bitrate = int(bearer_element.attrib['bitrate'])
-    if bearer_element.attrib.has_key('mimeValue'):
+    if 'mimeValue' in bearer_element.attrib:
         bearer.content = bearer_element.attrib['mimeValue'] 
 
     return bearer
@@ -568,11 +585,11 @@ def parse_location(locationElement):
     for bearerElement in locationElement.findall('spi:bearer', namespaces): location.bearers.append(parse_bearer(bearerElement))
     return location 
 
-def parse_programme_event(programmeEventElement):
+def parse_programme_event(programmeEventElement, listener):
     event = ProgrammeEvent(programmeEventElement.attrib['shortId'])
-    if programmeEventElement.attrib.has_key('id'): event.crid = programmeEventElement.attrib['id']
-    if programmeEventElement.attrib.has_key('version'): event.version = int(programmeEventElement.attrib['version'])
-    if programmeEventElement.attrib.has_key('recommendation'): event.recommendation = bool(programmeEventElement.attrib['recommendation'])
+    if 'id' in programmeEventElement.attrib: event.crid = programmeEventElement.attrib['id']
+    if 'version' in programmeEventElement.attrib: event.version = int(programmeEventElement.attrib['version'])
+    if 'recommendation' in programmeEventElement.attrib: event.recommendation = bool(programmeEventElement.attrib['recommendation'])
 
     for nameElement in programmeEventElement.findall("spi:shortName", namespaces): event.names.append(parse_name(nameElement))
     for nameElement in programmeEventElement.findall("spi:mediumName", namespaces): event.names.append(parse_name(nameElement))
@@ -581,7 +598,7 @@ def parse_programme_event(programmeEventElement):
     # media
     for media_element in programmeEventElement.findall("spi:mediaDescription", namespaces):
         for child in media_element.findall("spi:multimedia", namespaces):
-            event.media.append(parse_multimedia(child))
+            event.media.append(parse_multimedia(child, listener))
         for child in media_element.findall("spi:shortDescription", namespaces):
             event.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
@@ -594,12 +611,12 @@ def parse_programme_event(programmeEventElement):
     
     return event
 
-def parse_programme(programmeElement):
+def parse_programme(programmeElement, listener):
     programme = Programme(programmeElement.attrib['id'], programmeElement.attrib['shortId'])
-    if programmeElement.attrib.has_key('version'): programme.version = int(programmeElement.attrib['version'])
-    if programmeElement.attrib.has_key('recommendation'): programme.recommendation = bool(programmeElement.attrib['recommendation'])
-    if programmeElement.attrib.has_key('broadcast'): programme.onair = True if programmeElement.attrib['broadcast'] == 'on-air' else False
-    if programmeElement.attrib.has_key('bitrate'): programme.bitrate = int(programmeElement.attrib['bitrate'])
+    if 'version' in programmeElement.attrib: programme.version = int(programmeElement.attrib['version'])
+    if 'recommendation' in programmeElement.attrib: programme.recommendation = bool(programmeElement.attrib['recommendation'])
+    if 'broadcast' in programmeElement.attrib: programme.onair = True if programmeElement.attrib['broadcast'] == 'on-air' else False
+    if 'bitrate' in programmeElement.attrib: programme.bitrate = int(programmeElement.attrib['bitrate'])
 
     for nameElement in programmeElement.findall("spi:shortName", namespaces): programme.names.append(parse_name(nameElement))
     for nameElement in programmeElement.findall("spi:mediumName", namespaces): programme.names.append(parse_name(nameElement))
@@ -608,7 +625,7 @@ def parse_programme(programmeElement):
     # media
     for media_element in programmeElement.findall("spi:mediaDescription", namespaces):
         for child in media_element.findall("spi:multimedia", namespaces):
-            programme.media.append(parse_multimedia(child))
+            programme.media.append(parse_multimedia(child, listener))
         for child in media_element.findall("spi:shortDescription", namespaces):
             programme.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
@@ -625,9 +642,9 @@ def parse_programme(programmeElement):
 
 def parse_schedule(scheduleElement):
     schedule = Schedule()
-    if scheduleElement.attrib.has_key('creationTime'): schedule.created = isodate.parse_datetime(scheduleElement.attrib['creationTime'])
-    if scheduleElement.attrib.has_key('version'): schedule.version = int(scheduleElement.attrib['version'])
-    if scheduleElement.attrib.has_key('originator'): schedule.originator = scheduleElement.attrib['originator']
+    if 'creationTime' in scheduleElement.attrib: schedule.created = isodate.parse_datetime(scheduleElement.attrib['creationTime'])
+    if 'version' in scheduleElement.attrib: schedule.version = int(scheduleElement.attrib['version'])
+    if 'originator' in scheduleElement.attrib: schedule.originator = scheduleElement.attrib['originator']
     
     for programmeElement in scheduleElement.findall('spi:programme', namespaces):
         schedule.programmes.append(parse_programme(programmeElement))
@@ -660,22 +677,23 @@ def parse_description(descriptionElement):
     else:
         raise ValueError('unknown or malformed description element: %s' % descriptionElement)
     
-def parse_multimedia(mediaElement):
+def parse_multimedia(mediaElement, listener):
+    listener.on_element(mediaElement)
     type = None
     mime = None
     width = None
     height = None
-    if mediaElement.attrib.has_key('type'):
+    if 'type' in mediaElement.attrib:
         type_str = mediaElement.attrib['type']
         if type_str == 'logo_colour_square': type = Multimedia.LOGO_COLOUR_SQUARE
         if type_str == 'logo_colour_rectangle': type = Multimedia.LOGO_COLOUR_RECTANGLE
         if type_str == 'logo_unrestricted': 
             type = Multimedia.LOGO_UNRESTRICTED
-            if not mediaElement.attrib.has_key('mimeValue') or not mediaElement.attrib.has_key('width') or not mediaElement.attrib.has_key('height'):
+            if 'mimeValue' not in mediaElement.attrib or 'width' not in mediaElement.attrib or 'height' not in mediaElement.attrib:
                 raise ValueError('must specify mimeValue, width and height for unrestricted logo: %s', mediaElement)
-    if mediaElement.attrib.has_key('mimeValue'): mime = mediaElement.attrib['mimeValue']
-    if mediaElement.attrib.has_key('width'): width = int(mediaElement.attrib['width'])
-    if mediaElement.attrib.has_key('height'): height = int(mediaElement.attrib['height'])
+    if 'mimeValue' in mediaElement.attrib: mime = mediaElement.attrib['mimeValue']
+    if 'width' in mediaElement.attrib: width = int(mediaElement.attrib['width'])
+    if 'height' in mediaElement.attrib: height = int(mediaElement.attrib['height'])
         
     multimedia = Multimedia(mediaElement.attrib['url'], type=type, content=mime, height=height, width=width)
     return multimedia      
@@ -687,22 +705,22 @@ def parse_genre(genreElement):
 
 def parse_link(linkElement):
     link = Link(linkElement.attrib['uri'])
-    if linkElement.attrib.has_key('description'):
+    if 'description' in linkElement.attrib:
         link.description = linkElement.attrib['description']
-    if linkElement.attrib.has_key('mimeValue'):
+    if 'mimeValue' in linkElement.attrib:
         link.content = linkElement.attrib['mimeValue']    
-    if linkElement.attrib.has_key('expiryTime'):
+    if 'expiryTime' in linkElement.attrib:
         link.expiry = isodate.parse_datetime(linkElement.attrib['expiryTime']) 
     return link
         
 def parse_keywords(keywordsElement):
-    return map(lambda x: x.strip(), keywordsElement.text.split(','))
+    return [x.strip() for x in keywordsElement.text.split(',')]
     
-def parse_service(service_element):
+def parse_service(service_element, listener):
     service = Service()
     
     # attributes
-    if service_element.attrib.has_key('version'): service.version = int(service_element.attrib['version'])
+    if 'version' in service_element.attrib: service.version = int(service_element.attrib['version'])
     
     # names
     for child in service_element.findall("spi:shortName", namespaces): 
@@ -715,11 +733,12 @@ def parse_service(service_element):
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
         if child.attrib.has_key("id"): service.bearers.append(parse_bearer(child))
+        service.bearers.append(parse_bearer(child, listener))
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
         for child in media_element.findall("spi:multimedia", namespaces):
-            if child.attrib.has_key("url"): service.media.append(parse_multimedia(child))
+            service.media.append(parse_multimedia(child, listener))
         for child in media_element.findall("spi:shortDescription", namespaces):
             if child.text is not None: service.descriptions.append(parse_description(child))
         for child in media_element.findall("spi:longDescription", namespaces):
@@ -739,11 +758,11 @@ def parse_service(service_element):
 
     # lookup
     for child in service_element.findall("spi:radiodns", namespaces):
-        if child.attrib.has_key("fqdn") and child.attrib.has_key("serviceIdentifier"): service.lookup = 'http://%s/%s' % (child.attrib['fqdn'], child.attrib['serviceIdentifier'])
+        service.lookup = Lookup(child.attrib['fqdn'], child.attrib['serviceIdentifier'])
     
     return service
 
-def parse_ensemble(ensembleElement):
+def parse_ensemble(ensembleElement, listener):
     ensemble = Ensemble(ContentId.fromstring(ensembleElement.attrib['id']))
     for nameElement in ensembleElement.findall("spi:shortName", namespaces): ensemble.names.append(parse_name(nameElement))
     for nameElement in ensembleElement.findall("spi:mediumName", namespaces): ensemble.names.append(parse_name(nameElement))
@@ -753,10 +772,10 @@ def parse_ensemble(ensembleElement):
         ensemble.frequencies.append(int(frequencyElement.attrib['kHz']))
         
     for service_element in ensembleElement.findall("spi:service", namespaces):
-        ensemble.services.append(parse_service(service_element))
+        ensemble.services.append(parse_service(service_element, listener))
     return ensemble
 
-def unmarshall(i):
+def unmarshall(i, listener=UnmarshallListener()):
     """Unmarshalls a PI or SI XML file to its respective :class:Epg or :class:ServiceInfo object
     
     :param i: String or File object to read XML from
@@ -764,8 +783,8 @@ def unmarshall(i):
     """
     
     # read data
-    import StringIO
-    d = i if isinstance(i, file) else StringIO.StringIO(i)
+    import io
+    d = i if isinstance(i, io.IOBase) else io.StringIO(i)
     from xml.etree.ElementTree import parse 
     logger.debug('parsing XML data from: %s', d)
     doc = parse(d)
@@ -773,7 +792,7 @@ def unmarshall(i):
     logger.debug('got root element: %s', root)
     
     if root.tag == '{%s}serviceInformation' % SCHEMA_NS:
-        return parse_serviceinfo(root)
+        return parse_serviceinfo(root, listener)
     elif root.tag == '{%s}epg' % SCHEMA_NS:
         if len(root.findall("spi:schedule", namespaces)):
             return parse_programmeinfo(root)

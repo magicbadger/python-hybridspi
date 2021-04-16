@@ -39,4 +39,4 @@ group.memberships.append(Membership('crid://www.classicfm.com/shows/weekend', 12
 groups.groups.append(group)
 
 
-print marshall(info, indent='\t')
+print(marshall(info, indent='\t'))

@@ -41,4 +41,4 @@ info.services.append(service)
 
 ensemble = Ensemble(0xe1, 0xcfff)
 
-print marshall(info, ensemble=ensemble)
+print(marshall(info, ensemble=ensemble))
