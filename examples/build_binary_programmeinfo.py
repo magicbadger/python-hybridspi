@@ -3,7 +3,7 @@ from spi.binary import marshall
 
 start = datetime.datetime(2014, 4, 25, 6, 0, 0)
 end = datetime.datetime(2014, 4, 25, 13, 0, 0)
-schedule = Schedule(start, end, originator='Global Radio')
+schedule = Schedule(Scope(start, end), originator='Global Radio')
 info = ProgrammeInfo()
 info.schedules.append(schedule)
 
