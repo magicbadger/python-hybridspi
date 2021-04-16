@@ -26,9 +26,10 @@ import math
 import datetime, dateutil.tz
 import logging
 import sys
+from datetime import timedelta
 
 logger = logging.getLogger("spi.binary")
-
+logger.setLevel(10)
 
 class Ensemble:
     """
@@ -91,6 +92,7 @@ class Element:
 
         # encode CData
         if self.cdata is not None: 
+	    print 'rendering cdata: %s' % self.cdata
             logger.debug('rendering cdata: %s', self.cdata)
             data += self.cdata.tobytes()
         
@@ -417,6 +419,8 @@ def encode_timepoint(timepoint):
     
     bits = bitarray(1)
     bits.setall(False)
+    offset = (timepoint.utcoffset().days * 86400 + timepoint.utcoffset().seconds) + (timepoint.dst().days * 86400 + timepoint.dst().days)
+    timepoint = timepoint - timedelta(seconds=offset)
     
     # b0: RFA(0)
         
@@ -425,7 +429,7 @@ def encode_timepoint(timepoint):
     y = timepoint.year + 4800 - a
     m = timepoint.month + (12 * a) - 3
     jdn = timepoint.day + ((153 * m) + 2) / 5 + (365 * y) + (y / 4) - (y / 100) + (y / 400) - 32045
-    jd = jdn + (timepoint.hour - 12) / 24 + timepoint.minute / 1440 + timepoint.second / 86400
+    jd = jdn + timepoint.hour / 24 + timepoint.minute / 1440 + timepoint.second / 86400
     mjd = (int)(jd - 2400000.5)
     bits += encode_number(mjd, 17)
         
@@ -454,7 +458,6 @@ def encode_timepoint(timepoint):
     # b32/48: LTO
     if bits[19]:
         bits += bitarray('00') # b49-50: RFA(0)
-        offset = (timepoint.utcoffset().days * 86400 + timepoint.utcoffset().seconds) + (timepoint.dst().days * 86400 + timepoint.dst().days)
         bits += bitarray('0' if offset > 0 else '1') # b51: LTO sign
         bits += encode_number(offset / (60 * 60) * 2, 5) # b52-56: Half hours
             
@@ -664,19 +667,19 @@ class CData:
         # b8-15: element data length (0-253 bytes)
         # b16-31: extended element length (256-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
-        datalength = len(self.value)
+        datalength = len(self.value.encode('utf-8'))
         if datalength <= 253:
             tmp = encode_number(datalength, 8)
             bits += tmp
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.fromstring('\xfe')
+            tmp.frombytes('\xfe')
             bits += tmp
             tmp = encode_number(datalength, 16)
             bits += tmp
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.fromstring('\xff')
+            tmp.frombytes('\xff')
             bits += tmp
             tmp = encode_number(datalength, 24)
             bits += tmp
@@ -712,7 +715,7 @@ class CData:
         return CData(data.tostring())
 
 def marshall(obj, **kwargs):
-    """Marshalls an :class:Epg or :class:ServiceInfo to its binary document"""    
+    """Marshalls an :class:Epg or :class:ServiceInfo to its binary document"""
     if isinstance(obj, ServiceInfo): return marshall_serviceinfo(obj, kwargs.get('ensemble', None))
     elif isinstance(obj, ProgrammeInfo): return marshall_programmeinfo(obj)
     
@@ -773,14 +776,16 @@ def build_schedule(schedule):
         for name in programme.names:
             child = build_name(name)
             programme_element.children.append(child)
+        # descriptions
+        for description in programme.descriptions:
+            child = build_description(description)
+            programme_element.children.append(child)
         # locations
         for location in programme.locations:
             child = build_location(location)
             programme_element.children.append(child)
         # media
-        for media in programme.media:
-            child = build_mediagroup(media)
-            programme_element.children.append(child)
+        if programme.media: programme_element.children.append(build_mediagroup(programme.media))
         # genre
         for genre in programme.genres:
             child = build_genre(genre)
@@ -863,24 +868,31 @@ def build_description(description):
         mediagroup_element.children.append(description_element)
     return mediagroup_element
 
-def build_mediagroup(media):
-    if not isinstance(media, Multimedia): 
-        raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+def build_mediagroup(all_media):
     mediagroup_element = Element(0x13)
-    media_element = Element(0x2b)
-    mediagroup_element.children.append(media_element)
-    if media.content is not None:
-        media_element.attributes.append(Attribute(0x80, media.content, encode_string))
-    if media.url is not None:
-        media_element.attributes.append(Attribute(0x82, media.url, encode_string))
-    if media.type == Multimedia.LOGO_UNRESTRICTED:
-        media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
-        if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
-        if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
-    if media.type == Multimedia.LOGO_COLOUR_SQUARE:
-        media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
-    if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
-        media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
+    
+    for media in all_media :
+        
+        if not isinstance(media, Multimedia):
+            raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+        
+        media_element = Element(0x2b)
+        
+        if media.content is not None:
+            media_element.attributes.append(Attribute(0x80, media.content, encode_string))
+        if media.url is not None:
+            media_element.attributes.append(Attribute(0x82, media.url, encode_string))
+        if media.type == Multimedia.LOGO_UNRESTRICTED:
+            media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
+            if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
+            if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
+        if media.type == Multimedia.LOGO_COLOUR_SQUARE:
+            media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
+        if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
+            media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
+        
+        mediagroup_element.children.append(media_element)
+
     return mediagroup_element
     
 def build_genre(genre):
@@ -927,8 +939,7 @@ def build_programme_event(event):
     for location in event.locations:
         event_element.children.append(build_location(location))    
     # media
-    for media in event.media:
-        event_element.children.append(build_mediagroup(media))       
+    if event.media: event_element.children.append(build_mediagroup(event.media))
     # genre
     for genre in event.genres:
         event_element.children.append(build_genre(genre))
@@ -966,9 +977,8 @@ def build_service(service):
         service_element.children.append(build_description(description))
 
     # media
-    for media in service.media:
-        service_element.children.append(build_mediagroup(media))
-
+    if service.media: service_element.children.append(build_mediagroup(service.media))
+    
     # genre
     for genre in service.genres:
         service_element.children.append(build_genre(genre))
@@ -1013,8 +1023,7 @@ def build_ensemble(ensemble, services):
         event_element.children.append(build_description(description))
 
     # media
-    for media in ensemble.media:
-        ensemble_element.children.append(build_mediagroup(media))
+    if ensemble.media: ensemble_element.children.append(build_mediagroup(ensemble.media))
 
     # keywords
 
