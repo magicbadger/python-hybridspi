@@ -318,7 +318,8 @@ class Attribute:
 genre_map = dict(
     IntentionCS=1,
     FormatCS=2,
-    ContentCS=3, # what happened to 4?!
+    ContentCS=3,
+    IntendedAudienceCS=4,
     OriginationCS=5,
     ContentAlertCS=6,
     MediaTypeCS=7,
@@ -334,6 +335,7 @@ def encode_genre(genre):
     bits.setall(False)
     
     # b0-3: RFU(0)
+    bits += encode_number(0,4)
     # b4-7: CS
     cs = segments[4]
     if cs in list(genre_map.keys()): cs_val = genre_map[cs]
