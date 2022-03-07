@@ -92,7 +92,7 @@ class Element:
 
         # encode CData
         if self.cdata is not None: 
-	    print 'rendering cdata: %s' % self.cdata
+	    # print 'rendering cdata: %s' % self.cdata
             logger.debug('rendering cdata: %s', self.cdata)
             data += self.cdata.tobytes()
         
