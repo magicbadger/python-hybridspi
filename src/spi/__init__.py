@@ -200,7 +200,7 @@ class DabBearer(DigitalBearer):
         dab:<gcc>.<eid>.<sid>.<scids>.<xpad> in hex
         :: 
 
-        Where ``gcc`` is a combination of the first nibble of the EId and the ECC.
+        Where ``gcc`` is a combination of the first nibble of the SId and the ECC.
 
         For example:
         ::
@@ -211,8 +211,8 @@ class DabBearer(DigitalBearer):
         :type ecc: int
         :param eid: Ensemble ID
         :type eid: int
-        :param ecc: Service ID 
-        :type ecc: int
+        :param sid: Service ID 
+        :type sid: int
         :param scids: Service Component ID within the Service 
         :type scids: int
         :param xpad: X-PAD application 
@@ -238,7 +238,7 @@ class DabBearer(DigitalBearer):
         Parse a DAB Bearer URI from its string representation
         """        
         
-        pattern = re.compile("^dab:(.{3})\.(.{4})\.(.{4})\.(.{1})[\.(.+?)]{0,1}$")
+        pattern = re.compile("^dab:([0-9a-f]{3})\.([0-9a-f]{4})\.([0-9a-f]{4,8})\.([0-9a-f]{1})[\.(.+?)]{0,1}$")
         matcher = pattern.search(string)
         if not matcher: raise ValueError('bearer %s does not match the pattern: %s' % (string, pattern.pattern))
         ecc = int(matcher.group(1)[1:], 16)
@@ -251,7 +251,13 @@ class DabBearer(DigitalBearer):
         return DabBearer(ecc, eid, sid, scids, xpad)
     
     def __str__(self):
-        uri = 'dab:{gcc:03x}.{eid:04x}.{sid:04x}.{scids:01x}'.format(gcc=(self.eid >> 4 & 0xf00) + self.ecc, eid=self.eid, sid=self.sid, scids=self.scids)
+        if self.sid>65535: # this is a long SId which contains both ECC (first two nibbles) and CC (third nibble)
+            gcc = (self.sid >> 12 & 0xf00) + (self.sid >> 24)
+            uri = 'dab:{gcc:03x}.{eid:04x}.{sid:08x}.{scids:01x}'.format(gcc=gcc, eid=self.eid, sid=self.sid, scids=self.scids)
+        else: # this is a short SId which contains only the CC (first nibble)
+            gcc = (self.sid >> 4 & 0xf00) + self.ecc
+            uri = 'dab:{gcc:03x}.{eid:04x}.{sid:04x}.{scids:01x}'.format(gcc=gcc, eid=self.eid, sid=self.sid, scids=self.scids)
+ 
         if self.xpad is not None:
             uri += '.{xpad:04x}'.format(xpad=self.xpad)
         return uri
