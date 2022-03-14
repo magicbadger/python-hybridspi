@@ -264,6 +264,9 @@ class DabBearer(DigitalBearer):
 
     def __repr__(self):
         return '<DabBearer: %s>' % str(self)
+
+    def __eq__(self, other):
+        return str(self) == str(other)
             
 class HdBearer(DigitalBearer):
 
@@ -297,6 +300,9 @@ class HdBearer(DigitalBearer):
 
     def __repr__(self):
         return '<DabBearer: %s>' % str(self)        
+
+    def __eq__(self, other):
+        return str(self) == str(other)
 
 class FmBearer(Bearer):
 
@@ -356,7 +362,7 @@ class FmBearer(Bearer):
 
 class IpBearer(DigitalBearer):
 
-    def __init__(self, uri, content, cost=None, offset=None, bitrate=None):
+    def __init__(self, uri, content=None, cost=None, offset=None, bitrate=None):
 
         """
         IP Service Bearer
@@ -373,7 +379,9 @@ class IpBearer(DigitalBearer):
     
     def __repr__(self):
         return '<IpBearer: %s>' % str(self)
- 
+
+    def __eq__(self, other):
+        return str(self) == str(other)
 
 class ProgrammeInfo:
     """The root of a PI document"""

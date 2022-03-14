@@ -551,8 +551,7 @@ def parse_time(timeElement):
     else:
         raise ValueError('unknown time element: %s' % timeElement)
 
-def parse_bearer(bearer_element, listener):
-    listener.on_element(bearer_element)
+def parse_bearer(bearer_element):
     uri = bearer_element.attrib['id']
     try:
         if uri.startswith('dab'):
@@ -732,8 +731,9 @@ def parse_service(service_element, listener):
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
-        if child.attrib.has_key("id"): service.bearers.append(parse_bearer(child))
-        service.bearers.append(parse_bearer(child, listener))
+        if "id" in child.attrib: service.bearers.append(parse_bearer(child))
+        # service.bearers.append(parse_bearer(child, listener))
+        # service.bearers.append(parse_bearer(child)
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
@@ -750,7 +750,7 @@ def parse_service(service_element, listener):
 
     # links
     for child in service_element.findall("spi:link", namespaces):
-        if child.attrib.has_key("uri"): service.links.append(parse_link(child))
+        if "uri" in child.attrib: service.links.append(parse_link(child))
 
     # keywords
     for child in service_element.findall("spi:keywords", namespaces): 
