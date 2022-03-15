@@ -634,13 +634,13 @@ class CData:
             bits += tmp
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.frombytes('\xfe')
+            tmp.frombytes(b'\xfe')
             bits += tmp
             tmp = encode_number(datalength, 16)
             bits += tmp
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.frombytes('\xff')
+            tmp.frombytes(b'\xff')
             bits += tmp
             tmp = encode_number(datalength, 24)
             bits += tmp
@@ -968,7 +968,7 @@ def build_service(service):
     # radiodns lookup
     if service.lookup:
         from urllib.parse import urlparse
-        url = urlparse(service.lookup)
+        url = urlparse(str(service.lookup))
         lookup_element = Element(0x31)
         lookup_element.attributes.append(Attribute(0x80, url.netloc, encode_string))
         lookup_element.attributes.append(Attribute(0x81, url.path[1:], encode_string))

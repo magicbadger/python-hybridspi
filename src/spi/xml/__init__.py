@@ -639,21 +639,21 @@ def parse_programme(programmeElement, listener):
     
     return programme
 
-def parse_schedule(scheduleElement):
+def parse_schedule(scheduleElement, listener):
     schedule = Schedule()
     if 'creationTime' in scheduleElement.attrib: schedule.created = isodate.parse_datetime(scheduleElement.attrib['creationTime'])
     if 'version' in scheduleElement.attrib: schedule.version = int(scheduleElement.attrib['version'])
     if 'originator' in scheduleElement.attrib: schedule.originator = scheduleElement.attrib['originator']
     
     for programmeElement in scheduleElement.findall('spi:programme', namespaces):
-        schedule.programmes.append(parse_programme(programmeElement))
+        schedule.programmes.append(parse_programme(programmeElement, listener))
     return schedule
 
-def parse_programmeinfo(root):
+def parse_programmeinfo(root, listener):
     logger.debug('parsing programme info from root: %s', root)
     schedules = []
     for schedule_element in root.findall('spi:schedule', namespaces):
-        schedule = parse_schedule(schedule_element)
+        schedule = parse_schedule(schedule_element, listener)
         schedules.append(schedule)
     info = ProgrammeInfo(schedules=schedules)
     return info
@@ -795,9 +795,9 @@ def unmarshall(i, listener=UnmarshallListener()):
         return parse_serviceinfo(root, listener)
     elif root.tag == '{%s}epg' % SCHEMA_NS:
         if len(root.findall("spi:schedule", namespaces)):
-            return parse_programmeinfo(root)
+            return parse_programmeinfo(root, listener)
         if len(root.findall("spi:programmeGroups", namespaces)):
-            return parse_groupinfo(root)
+            return parse_groupinfo(root, listener)
         else:
             raise Exception('epg element does not contain either schedules or programme groups')
     else:

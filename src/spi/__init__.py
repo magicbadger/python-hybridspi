@@ -645,7 +645,7 @@ class Scope:
     Contains the scope of the proposed schedule, in terms of time and bearers
     """
 
-    def __init__(self, start, end, bearers=[]):
+    def __init__(self, start=None, end=None, bearers=[]):
         """
         :param start: Scope start time, if not specified this is calculated from the programmes
         :type start: datetime
@@ -663,7 +663,7 @@ class Schedule:
     Contains programmes within a given time period.
     """
     
-    def __init__(self, scope : Scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
+    def __init__(self, scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
         """x
         :param scope: Defined scope, otherwise proposed from the schedule
         :type scope: Scope
@@ -674,6 +674,7 @@ class Schedule:
         :param originator: Originator of the schedule
         :type originator: string
         """
+        if scope==None and type(scope) is not Scope: scope=Scope()
         if type(scope) is not Scope: raise ValueError("scope must be a Scope object")
         self.scope = scope
         self.created = created
