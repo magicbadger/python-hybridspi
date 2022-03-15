@@ -318,7 +318,8 @@ class Attribute:
 genre_map = dict(
     IntentionCS=1,
     FormatCS=2,
-    ContentCS=3, # what happened to 4?!
+    ContentCS=3,
+    IntendedAudienceCS=4,
     OriginationCS=5,
     ContentAlertCS=6,
     MediaTypeCS=7,
@@ -334,6 +335,7 @@ def encode_genre(genre):
     bits.setall(False)
     
     # b0-3: RFU(0)
+    bits += encode_number(0,4)
     # b4-7: CS
     cs = segments[4]
     if cs in list(genre_map.keys()): cs_val = genre_map[cs]
@@ -626,9 +628,11 @@ class CData:
         bits.frombytes(b'\x01')
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
+        
         datalength = len(self.value.encode()) # ensure we get the right count for the encoding
+        
         if datalength <= 253:
             tmp = encode_number(datalength, 8)
             bits += tmp
