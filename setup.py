@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+import sys
+from setuptools import setup
 
 setup(name='hybridspi',
       version='0.2.0',
