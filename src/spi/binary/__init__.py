@@ -222,37 +222,6 @@ class Attribute:
         logger.debug('encoding attribute %s with function %s', self, self.f) 
         data = self.f(self.value, *self.args, **self.kwargs)
 
-        #if isinstance(self.value, int) or isinstance(self.value, long): # integer
-        #    if self.bitlength is None: raise ValueError('attribute %s with int value has no bitlength specification' % self)
-        #    logger.debug('encoding attribute %s as int with %d bits', self, self.bitlength)
-        #    data = encode_number(self.value, self.bitlength)
-        #elif isinstance(self.value, datetime.timedelta): # duration
-        #    data = encode_number(self.value.seconds, 16)
-        #    logger.debug('encoding attribute %s as duration', self)
-        #elif isinstance(self.value, Crid): # CRID
-        #    data = bitarray()
-        #    data.fromstring(str(self.value))
-        #    logger.debug('encoding attribute %s as CRID', self)
-        #elif isinstance(self.value, Genre): # genre
-        #    data = encode_genre(self.value)
-        #    logger.debug('encoding attribute %s as genre', self)
-        #elif isinstance(self.value, datetime.datetime): # time
-        #    data = encode_timepoint(self.value)
-        #    logger.debug('encoding attribute %s as timepoint', self)
-        #elif isinstance(self.value, str): # string
-        #    data = bitarray()
-        #    data.fromstring(self.value)
-        #    logger.debug('encoding attribute %s as string', self)
-        #elif isinstance(self.value, Bearer):
-        #    data = encode_bearer(self.value)
-        #    logger.debug('encoding attribute %s as bearer', self)
-        #elif isinstance(self.value, Ensemble):
-        #    data = encode_ensembleid(self.value.ecc, self.value.eid)
-        #    logger.debug('encoding attribute %s as ensemble ID', self.value)
-        #else:
-        #    raise ValueError('dont know how to encode this type: %s = %s' % (self.value.__class__.__name__, str(self.value)))
-        #data.fill()
-        
         # b0-b7: tag
         bits = encode_number(self.tag, 8)
   
@@ -407,9 +376,14 @@ def encode_string(s):
     
 def encode_timepoint(timepoint):
     
+    if timepoint.tzinfo is None:
+        UTC = datetime.timezone.utc
+        timepoint = timepoint.replace(tzinfo=UTC)
     bits = bitarray(1)
     bits.setall(False)
-    offset = (timepoint.utcoffset().days * 86400 + timepoint.utcoffset().seconds) + (timepoint.dst().days * 86400 + timepoint.dst().days)
+    tz_offset = timepoint.utcoffset() if timepoint.utcoffset() is not None else datetime.timedelta(0)
+    tz_dst = timepoint.dst() if timepoint.dst() is not None else datetime.timedelta(0)
+    offset = (tz_offset.days * 86400 + tz_offset.seconds) + (tz_dst.days * 86400 + tz_dst.days)
     timepoint = timepoint - timedelta(seconds=offset)
     
     # b0: RFA(0)
@@ -656,21 +630,21 @@ class CData:
         # b8-15: element data length (0-253 bytes)
         # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
-
+        
         datalength = len(self.value.encode()) # ensure we get the right count for the encoding
-
+        
         if datalength <= 253:
             tmp = encode_number(datalength, 8)
             bits += tmp
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.frombytes('\xfe')
+            tmp.frombytes(b'\xfe')
             bits += tmp
             tmp = encode_number(datalength, 16)
             bits += tmp
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.frombytes('\xff')
+            tmp.frombytes(b'\xff')
             bits += tmp
             tmp = encode_number(datalength, 24)
             bits += tmp
@@ -998,7 +972,7 @@ def build_service(service):
     # radiodns lookup
     if service.lookup:
         from urllib.parse import urlparse
-        url = urlparse(service.lookup)
+        url = urlparse(str(service.lookup))
         lookup_element = Element(0x31)
         lookup_element.attributes.append(Attribute(0x80, url.netloc, encode_string))
         lookup_element.attributes.append(Attribute(0x81, url.path[1:], encode_string))
