@@ -77,7 +77,7 @@ class Element:
         bits = encode_number(self.tag, 8)
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
         datalength = len(data)/8
         if datalength == 0:
@@ -233,12 +233,12 @@ class Attribute:
             bits += encode_number(datalength, 8)
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.fromstring('\xfe')
+            tmp.fromstring(b'\xfe')
             bits += tmp
             bits += encode_number(datalength, 16)
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.fromstring('\xff')
+            tmp.fromstring(b'\xff')
             bits += tmp
             bits += encode_number(datalength, 24)
         else: raise ValueError('element data length exceeds the maximum allowed by the extended element length (24bits): %s > %s' + datalength + " > " + (1<<24))
