@@ -77,7 +77,7 @@ class Element:
         bits = encode_number(self.tag, 8)
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
         datalength = len(data)/8
         if datalength == 0:
