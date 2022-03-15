@@ -551,8 +551,7 @@ def parse_time(timeElement):
     else:
         raise ValueError('unknown time element: %s' % timeElement)
 
-def parse_bearer(bearer_element, listener):
-    listener.on_element(bearer_element)
+def parse_bearer(bearer_element):
     uri = bearer_element.attrib['id']
     try:
         if uri.startswith('dab'):
@@ -640,21 +639,21 @@ def parse_programme(programmeElement, listener):
     
     return programme
 
-def parse_schedule(scheduleElement):
+def parse_schedule(scheduleElement, listener):
     schedule = Schedule()
     if 'creationTime' in scheduleElement.attrib: schedule.created = isodate.parse_datetime(scheduleElement.attrib['creationTime'])
     if 'version' in scheduleElement.attrib: schedule.version = int(scheduleElement.attrib['version'])
     if 'originator' in scheduleElement.attrib: schedule.originator = scheduleElement.attrib['originator']
     
     for programmeElement in scheduleElement.findall('spi:programme', namespaces):
-        schedule.programmes.append(parse_programme(programmeElement))
+        schedule.programmes.append(parse_programme(programmeElement, listener))
     return schedule
 
-def parse_programmeinfo(root):
+def parse_programmeinfo(root, listener):
     logger.debug('parsing programme info from root: %s', root)
     schedules = []
     for schedule_element in root.findall('spi:schedule', namespaces):
-        schedule = parse_schedule(schedule_element)
+        schedule = parse_schedule(schedule_element, listener)
         schedules.append(schedule)
     info = ProgrammeInfo(schedules=schedules)
     return info
@@ -732,8 +731,9 @@ def parse_service(service_element, listener):
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
-        if child.attrib.has_key("id"): service.bearers.append(parse_bearer(child))
-        service.bearers.append(parse_bearer(child, listener))
+        if "id" in child.attrib: service.bearers.append(parse_bearer(child))
+        # service.bearers.append(parse_bearer(child, listener))
+        # service.bearers.append(parse_bearer(child)
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
@@ -750,7 +750,7 @@ def parse_service(service_element, listener):
 
     # links
     for child in service_element.findall("spi:link", namespaces):
-        if child.attrib.has_key("uri"): service.links.append(parse_link(child))
+        if "uri" in child.attrib: service.links.append(parse_link(child))
 
     # keywords
     for child in service_element.findall("spi:keywords", namespaces): 
@@ -795,9 +795,9 @@ def unmarshall(i, listener=UnmarshallListener()):
         return parse_serviceinfo(root, listener)
     elif root.tag == '{%s}epg' % SCHEMA_NS:
         if len(root.findall("spi:schedule", namespaces)):
-            return parse_programmeinfo(root)
+            return parse_programmeinfo(root, listener)
         if len(root.findall("spi:programmeGroups", namespaces)):
-            return parse_groupinfo(root)
+            return parse_groupinfo(root, listener)
         else:
             raise Exception('epg element does not contain either schedules or programme groups')
     else:
