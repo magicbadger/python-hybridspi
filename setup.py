@@ -14,6 +14,6 @@ setup(name='hybridspi',
       keywords=['dab', 'spi', 'hybrid', 'radio'],
       packages=['spi', 'spi.xml', 'spi.binary'],
       package_dir = {'' : 'src'},
-      install_requires = ['python-dateutil', 'isodate', 'bitarray==1.2.0', 'asciitree'],
+      install_requires = ['python-dateutil', 'isodate', 'bitarray', 'asciitree'],
       scripts=['bin/dump_binary']
 )
