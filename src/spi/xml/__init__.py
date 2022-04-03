@@ -553,19 +553,16 @@ def parse_time(timeElement):
 
 def parse_bearer(bearer_element):
     uri = bearer_element.attrib['id']
-    try:
-        if uri.startswith('dab'):
-            bearer = DabBearer.fromstring(uri)
-        elif uri.startswith('fm'):
-            bearer = FmBearer.fromstring(uri) 
-        elif uri.startswith('http'):
-            bearer = IpBearer(uri)
-        else:
-            raise ValueError('bearer %s not recognised' % uri)
-    except:
-        bearer = IpBearer("http://null/")
-        logger.debug('bearer %s is malformed', uri)
-
+    if uri.startswith('dab'):
+        bearer = DabBearer.fromstring(uri)
+    elif uri.startswith('fm'):
+        bearer = FmBearer.fromstring(uri) 
+    elif uri.startswith('http') or uri.startswith('https'):
+        if "mimeValue" not in bearer_element.attrib:
+            raise ValueError("missing mimeValue attribute for URL: %s" % uri)
+        bearer = IpBearer(uri, content=bearer_element.attrib.get('mimeValue'))
+    else:
+        raise ValueError('bearer %s not recognised' % uri)
     if 'cost' in bearer_element.attrib:
         bearer.cost = int(bearer_element.attrib['cost'])
     if 'offset' in bearer_element.attrib:
@@ -731,9 +728,7 @@ def parse_service(service_element, listener):
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
-        if "id" in child.attrib: service.bearers.append(parse_bearer(child))
-        # service.bearers.append(parse_bearer(child, listener))
-        # service.bearers.append(parse_bearer(child)
+        if "id" in child: ervice.bearers.append(parse_bearer(child, listener))
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
