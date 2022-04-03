@@ -77,7 +77,7 @@ class Element:
         bits = encode_number(self.tag, 8)
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
         datalength = len(data)/8
         if datalength == 0:
@@ -137,8 +137,8 @@ class Element:
         i = 0
         e = Element(tag)
         logger.debug('parsing data of length %d bytes for element with tag 0x%02x', datalength, tag)
-        while i < data.length():
-            logger.debug('now parsing at offset %d / %d', i/8, data.length()/8)
+        while i < len(data):
+            logger.debug('now parsing at offset %d / %d', i/8, len(data)/8)
             child_tag = int(data[i:i+8].to01(), 2)            
             child_datalength = int(data[i+8:i+16].to01(), 2)
             start = 16
@@ -150,10 +150,10 @@ class Element:
                 start = 40
             logger.debug('child with tag 0x%02x for parent tag 0x%02x at offset %d has data length of %d bytes', child_tag, tag, i/8, child_datalength)
             end = start + (child_datalength * 8)
-            if i + end > data.length():
-                raise ValueError('end of data for element with tag 0x%02x at offset %d requested is beyond length: %d > %d: %s' % (child_tag, i/8, (i + end)/8, data.length() / 8, bitarray_to_hex(data[i:i+64])))
+            if i + end > len(data):
+                raise ValueError('end of data for element with tag 0x%02x at offset %d requested is beyond length: %d > %d: %s' % (child_tag, i/8, (i + end)/8, len(data) / 8, bitarray_to_hex(data[i:i+64])))
             child_data = data[i + start : i + end] 
-            if child_data.length() < 16*8: logger.debug('child element with tag 0x%02x for parent 0x%02x has data: %s', child_tag, tag, bitarray_to_hex(child_data))
+            if len(child_data) < 16*8: logger.debug('child element with tag 0x%02x for parent 0x%02x has data: %s', child_tag, tag, bitarray_to_hex(child_data))
                 
             # attributes
             if child_tag >= 0x80 and child_tag <= 0x87:
@@ -228,17 +228,17 @@ class Attribute:
         # b8-15: element data length (0-253 bytes)
         # b16-31: extended element length (256-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
-        datalength = bits2bytes(data.length())
+        datalength = bits2bytes(len(data))
         if datalength <= 253:
             bits += encode_number(datalength, 8)
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.fromstring('\xfe')
+            tmp.fromstring(b'\xfe')
             bits += tmp
             bits += encode_number(datalength, 16)
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.fromstring('\xff')
+            tmp.fromstring(b'\xff')
             bits += tmp
             bits += encode_number(datalength, 24)
         else: raise ValueError('element data length exceeds the maximum allowed by the extended element length (24bits): %s > %s' + datalength + " > " + (1<<24))
@@ -318,7 +318,8 @@ class Attribute:
 genre_map = dict(
     IntentionCS=1,
     FormatCS=2,
-    ContentCS=3, # what happened to 4?!
+    ContentCS=3,
+    IntendedAudienceCS=4,
     OriginationCS=5,
     ContentAlertCS=6,
     MediaTypeCS=7,
@@ -334,6 +335,7 @@ def encode_genre(genre):
     bits.setall(False)
     
     # b0-3: RFU(0)
+    bits += encode_number(0,4)
     # b4-7: CS
     cs = segments[4]
     if cs in list(genre_map.keys()): cs_val = genre_map[cs]
@@ -358,9 +360,9 @@ def decode_genre(bits):
     level = '%d' % cs_val
     
     # optional schema levels
-    if bits.length() > 8:
+    if len(bits) > 8:
         i = 8
-        while i < bits.length():
+        while i < len(bits):
             sublevel = int(bits[i:i+8].to01(), 2)
             level += '.%d' % sublevel
             i += 8
@@ -536,7 +538,7 @@ def decode_contentid(bits):
     xpad = None
     
     try:
-        if bits.length() == 24: # EnsembleId
+        if len(bits) == 24: # EnsembleId
             # ECC, EId
             ecc = int(bits[0:8].to01(), 2)
             eid = int(bits[8:24].to01(), 2)
@@ -577,7 +579,7 @@ def decode_tokentable(bits):
     tokens = {}
     
     i = 0 
-    while i < bits.length():
+    while i < len(bits):
         tag = int(bits[i:i+8].to01(), 2)
         length = int(bits[i+8:i+16].to01(), 2)
         data = bits[i+16:i+16+(length*8)].tobytes().decode(DEFAULT_ENCODING)
@@ -600,7 +602,7 @@ enum_values = {
 
 def decode_enum(parent_tag, tag, bits):
     
-    if bits.length() != 8: raise ValueError('enum data for parent/attribute 0x%02x/0x%02x is of incorrect length: %d bytes' % (parent_tag, tag, bits.length()/8))
+    if len(bits) != 8: raise ValueError('enum data for parent/attribute 0x%02x/0x%02x is of incorrect length: %d bytes' % (parent_tag, tag, len(bits)/8))
     
     value = int(bits.to01(), 2)
     key = (parent_tag, tag, value)
@@ -626,21 +628,23 @@ class CData:
         bits.frombytes(b'\x01')
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
+        
         datalength = len(self.value.encode()) # ensure we get the right count for the encoding
+        
         if datalength <= 253:
             tmp = encode_number(datalength, 8)
             bits += tmp
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.frombytes('\xfe')
+            tmp.frombytes(b'\xfe')
             bits += tmp
             tmp = encode_number(datalength, 16)
             bits += tmp
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.frombytes('\xff')
+            tmp.frombytes(b'\xff')
             bits += tmp
             tmp = encode_number(datalength, 24)
             bits += tmp
@@ -968,7 +972,7 @@ def build_service(service):
     # radiodns lookup
     if service.lookup:
         from urllib.parse import urlparse
-        url = urlparse(service.lookup)
+        url = urlparse(str(service.lookup))
         lookup_element = Element(0x31)
         lookup_element.attributes.append(Attribute(0x80, url.netloc, encode_string))
         lookup_element.attributes.append(Attribute(0x81, url.path[1:], encode_string))

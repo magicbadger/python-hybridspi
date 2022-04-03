@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+import sys
+from setuptools import setup
 
 setup(name='hybridspi',
       version='0.2.0',
@@ -14,5 +15,5 @@ setup(name='hybridspi',
       packages=['spi', 'spi.xml', 'spi.binary'],
       package_dir = {'' : 'src'},
       install_requires = ['python-dateutil', 'isodate', 'bitarray', 'asciitree'],
-      scripts=['dump_binary']
+      scripts=['bin/dump_binary']
 )
