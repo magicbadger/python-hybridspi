@@ -26,6 +26,7 @@ from dateutil.tz import tzlocal
 
 MAX_SHORTCRID = 16777215
 DEFAULT_LANGUAGE = "en"
+DEFAULT_ENCODING = "utf-8"
 
 class Text:
     """Abstract class for textual information"""
