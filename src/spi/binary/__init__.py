@@ -971,11 +971,10 @@ def build_service(service):
 
     # radiodns lookup
     if service.lookup:
-        from urllib.parse import urlparse
-        url = urlparse(str(service.lookup))
+        radiodns = str(service.lookup).partition('/')
         lookup_element = Element(0x31)
-        lookup_element.attributes.append(Attribute(0x80, url.netloc, encode_string))
-        lookup_element.attributes.append(Attribute(0x81, url.path[1:], encode_string))
+        lookup_element.attributes.append(Attribute(0x80, radiodns[0], encode_string))
+        lookup_element.attributes.append(Attribute(0x81, radiodns[2], encode_string))
         service_element.children.append(lookup_element)
 
     return service_element
