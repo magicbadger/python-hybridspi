@@ -814,11 +814,11 @@ def build_time(time):
     if isinstance(time, Time):
         time_element = Element(0x2c)
         time_element.attributes.append(Attribute(0x80, time.billed_time, encode_timepoint))
+        time_element.attributes.append(Attribute(0x81, time.billed_duration.seconds, encode_number, 16))
         if time.actual_time is not None:
             time_element.attributes.append(Attribute(0x82, time.actual_time, encode_timepoint))
         if time.actual_duration is not None:
-            time_element.attributes.append(Attribute(0x83, time.actual_duration.seconds, encode_number, 16))            
-        time_element.attributes.append(Attribute(0x81, time.billed_duration.seconds, encode_number, 16))
+            time_element.attributes.append(Attribute(0x83, time.actual_duration.seconds, encode_number, 16))
     elif isinstance(time, RelativeTime):
         time_element = Element(0x2f)
         time_element.attributes.append(Attribute(0x80, time.billed_offset.seconds, encode_number, 16))
