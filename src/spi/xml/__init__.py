@@ -645,6 +645,21 @@ def parse_schedule(scheduleElement, listener):
     if 'version' in scheduleElement.attrib: schedule.version = int(scheduleElement.attrib['version'])
     if 'originator' in scheduleElement.attrib: schedule.originator = scheduleElement.attrib['originator']
     
+    scope = Scope()
+    scopeElement = scheduleElement.find('spi:scope', namespaces)
+    if scopeElement is not None:
+        if 'startTime' in scopeElement.attrib and 'endTime' in scopeElement.attrib:
+            scope.start = isodate.parse_datetime(scopeElement.attrib['startTime'])
+            scope.end = isodate.parse_datetime(scopeElement.attrib['endTime'])
+        else:
+            scope.start = None
+            scope.end = None
+
+        for serviceScope in scopeElement.findall('spi:serviceScope'):
+            scope.bearers.append(serviceScope)
+
+    schedule.scope = scope
+ 
     for programmeElement in scheduleElement.findall('spi:programme', namespaces):
         schedule.programmes.append(parse_programme(programmeElement, listener))
     return schedule
