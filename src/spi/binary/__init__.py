@@ -728,10 +728,10 @@ def build_schedule(schedule):
     if schedule.originator is not None:
         schedule_element.attributes.append(Attribute(0x82, schedule.originator, encode_string))
         
-    # schedule scope TODO
-    #scope = schedule.get_scope()
-    #if scope is not None:
-    #    schedule_element.children.append(build_scope(scope))
+    # schedule scope
+    scope = schedule.scope
+    if scope is not None and scope.start is not None and scope.end is not None:
+        schedule_element.children.append(build_scope(scope))
     
     # programmes
     for programme in schedule.programmes:
