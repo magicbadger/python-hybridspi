@@ -43,11 +43,12 @@ class Ensemble:
 
 class Element:
     
-    def __init__(self, tag, attributes=None, children=None, cdata=None):
+    def __init__(self, tag, attributes=None, children=None, cdata=None, rawbits=None):
         self.tag = tag
         self.attributes = (attributes if attributes is not None else [])
         self.children = (children if children is not None else [])
         self.cdata = cdata
+        self.rawbits = rawbits
         logger.debug('created new element: %s', self)
         
     def tobytes(self):
@@ -73,7 +74,12 @@ class Element:
         if self.cdata is not None: 
             logger.debug('rendering cdata: %s', self.cdata)
             data += self.cdata.tobytes()
-        
+
+        # encode Rawbits
+        if self.rawbits is not None:
+            logger.debug('rendering rawbits: %s', self.rawbits) 
+            data += self.rawbits
+           
         # b0-b7: element tag
         bits = encode_number(self.tag, 8)
   
@@ -176,6 +182,7 @@ class Element:
             # default language
             elif child_tag == 0x06: 
                 logger.debug('parsing child as a default language (not yet implemented)')
+                print('trying to decode the language tag')
                 pass               
             # children
             elif child_tag >= 0x02 and child_tag <= 0x36:
@@ -691,7 +698,9 @@ def marshall_serviceinfo(info, ensemble):
 
     # default language
     default_language_element = Element(0x06)
-    default_language_element.attributes.append(Attribute(0x80, DEFAULT_LANGUAGE, encode_string)) # TODO make this configurable in a better way
+    language = bitarray()
+    language.frombytes(DEFAULT_LANGUAGE.encode('utf-8'))
+    default_language_element.rawbits = language
     info_element.children.append(default_language_element)
 
     # ensemble
@@ -814,11 +823,11 @@ def build_time(time):
     if isinstance(time, Time):
         time_element = Element(0x2c)
         time_element.attributes.append(Attribute(0x80, time.billed_time, encode_timepoint))
-        time_element.attributes.append(Attribute(0x81, time.billed_duration.seconds, encode_number, 16))
         if time.actual_time is not None:
             time_element.attributes.append(Attribute(0x82, time.actual_time, encode_timepoint))
         if time.actual_duration is not None:
-            time_element.attributes.append(Attribute(0x83, time.actual_duration.seconds, encode_number, 16))
+            time_element.attributes.append(Attribute(0x83, time.actual_duration.seconds, encode_number, 16))            
+        time_element.attributes.append(Attribute(0x81, time.billed_duration.seconds, encode_number, 16))
     elif isinstance(time, RelativeTime):
         time_element = Element(0x2f)
         time_element.attributes.append(Attribute(0x80, time.billed_offset.seconds, encode_number, 16))
