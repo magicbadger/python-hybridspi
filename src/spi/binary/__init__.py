@@ -962,8 +962,8 @@ def build_service(service):
 
     # media
     for media in service.media:
-        service_element.childen.append(build_mediagroup(service.media)
-    
+        service_element.childen.append(build_mediagroup(service.media))
+
     # genre
     for genre in service.genres:
         service_element.children.append(build_genre(genre))
