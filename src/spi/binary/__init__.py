@@ -22,10 +22,10 @@ class Ensemble:
     :type version: integer
     """
     
-    def __init__(self, ecc, eid, version=1):
+    def __init__(self, ecc, eid, version=1, names=[]):
         self.ecc = ecc
         self.eid = eid
-        self.names = []
+        self.names = names
         self.descriptions = []
         self.media = []
         self.keywords = []
