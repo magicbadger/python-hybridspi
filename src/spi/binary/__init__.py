@@ -766,7 +766,7 @@ def build_schedule(schedule):
             programme_element.children.append(child)
         # media
         for media in programme.media:
-            programme_element.children.append(build_mediagroup(programme.media))
+            programme_element.children.append(build_mediagroup(media))
         # genre
         for genre in programme.genres:
             child = build_genre(genre)
@@ -923,7 +923,7 @@ def build_programme_event(event):
         event_element.children.append(build_location(location))    
     # media
     for media in event.media:
-        event_element.children.append(build_mediagroup(event.media))
+        event_element.children.append(build_mediagroup(media))
     # genre
     for genre in event.genres:
         event_element.children.append(build_genre(genre))
@@ -962,7 +962,7 @@ def build_service(service):
 
     # media
     for media in service.media:
-        service_element.childen.append(build_mediagroup(service.media))
+        service_element.children.append(build_mediagroup(media))
 
     # genre
     for genre in service.genres:
@@ -1008,7 +1008,7 @@ def build_ensemble(ensemble, services):
 
     # media
     for media in ensemble.media:
-        ensemble_element.children.append(build_mediagroup(ensemble.media))
+        ensemble_element.children.append(build_mediagroup(media))
 
     # keywords
 

@@ -559,8 +559,12 @@ def parse_bearer(bearer_element):
         bearer = FmBearer.fromstring(uri) 
     elif uri.startswith('http') or uri.startswith('https'):
         if "mimeValue" not in bearer_element.attrib:
-            raise ValueError("missing mimeValue attribute for URL: %s" % uri)
-        bearer = IpBearer(uri, content=bearer_element.attrib.get('mimeValue'))
+            bearer = IpBearer(uri)
+        else:
+            bearer = IpBearer(uri, content=bearer_element.attrib.get('mimeValue'))
+    elif uri.startswith('hd'):
+        bearer = IpBearer("http://null/")
+        logger.debug('bearer %s is useful for DAB SPI', uri)
     else:
         raise ValueError('bearer %s not recognised' % uri)
     if 'cost' in bearer_element.attrib:
@@ -743,7 +747,7 @@ def parse_service(service_element, listener):
 
     # bearers
     for child in service_element.findall("spi:bearer", namespaces):
-        if "id" in child: service.bearers.append(parse_bearer(child, listener))
+        if "id" in child.attrib: service.bearers.append(parse_bearer(child))
 
     # media
     for media_element in service_element.findall("spi:mediaDescription", namespaces): 
