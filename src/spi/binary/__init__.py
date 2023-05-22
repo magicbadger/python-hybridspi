@@ -765,7 +765,8 @@ def build_schedule(schedule):
             child = build_location(location)
             programme_element.children.append(child)
         # media
-        if programme.media: programme_element.children.append(build_mediagroup(programme.media))
+        for media in programme.media:
+            programme_element.children.append(build_mediagroup(programme.media))
         # genre
         for genre in programme.genres:
             child = build_genre(genre)
@@ -851,30 +852,29 @@ def build_description(description):
     mediagroup_element.children.append(description_element)
     return mediagroup_element
 
-def build_mediagroup(all_media):
+def build_mediagroup(media):
+
     mediagroup_element = Element(0x13)
-    
-    for media in all_media :
+
+    if not isinstance(media, Multimedia):
+        raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+
+    media_element = Element(0x2b)
         
-        if not isinstance(media, Multimedia):
-            raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+    if media.content is not None:
+        media_element.attributes.append(Attribute(0x80, media.content, encode_string))
+    if media.url is not None:
+        media_element.attributes.append(Attribute(0x82, media.url, encode_string))
+    if media.type == Multimedia.LOGO_UNRESTRICTED:
+        media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
+        if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
+        if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
+    if media.type == Multimedia.LOGO_COLOUR_SQUARE:
+        media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
+    if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
+        media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
         
-        media_element = Element(0x2b)
-        
-        if media.content is not None:
-            media_element.attributes.append(Attribute(0x80, media.content, encode_string))
-        if media.url is not None:
-            media_element.attributes.append(Attribute(0x82, media.url, encode_string))
-        if media.type == Multimedia.LOGO_UNRESTRICTED:
-            media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
-            if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
-            if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
-        if media.type == Multimedia.LOGO_COLOUR_SQUARE:
-            media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
-        if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
-            media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
-        
-        mediagroup_element.children.append(media_element)
+    mediagroup_element.children.append(media_element)
 
     return mediagroup_element
     
@@ -922,7 +922,8 @@ def build_programme_event(event):
     for location in event.locations:
         event_element.children.append(build_location(location))    
     # media
-    if event.media: event_element.children.append(build_mediagroup(event.media))
+    for media in event.media:
+        event_element.children.append(build_mediagroup(event.media))
     # genre
     for genre in event.genres:
         event_element.children.append(build_genre(genre))
@@ -960,7 +961,8 @@ def build_service(service):
         service_element.children.append(build_description(description))
 
     # media
-    if service.media: service_element.children.append(build_mediagroup(service.media))
+    for media in service.media:
+        service_element.childen.append(build_mediagroup(service.media)
     
     # genre
     for genre in service.genres:
@@ -1005,7 +1007,8 @@ def build_ensemble(ensemble, services):
         event_element.children.append(build_description(description))
 
     # media
-    if ensemble.media: ensemble_element.children.append(build_mediagroup(ensemble.media))
+    for media in ensemble.media:
+        ensemble_element.children.append(build_mediagroup(ensemble.media))
 
     # keywords
 
