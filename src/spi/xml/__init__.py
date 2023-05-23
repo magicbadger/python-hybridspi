@@ -564,7 +564,7 @@ def parse_bearer(bearer_element):
             bearer = IpBearer(uri, content=bearer_element.attrib.get('mimeValue'))
     elif uri.startswith('hd'):
         bearer = IpBearer("http://null/")
-        logger.debug('bearer %s is useful for DAB SPI', uri)
+        logger.debug('bearer %s is not useful for DAB SPI', uri)
     else:
         raise ValueError('bearer %s not recognised' % uri)
     if 'cost' in bearer_element.attrib:
