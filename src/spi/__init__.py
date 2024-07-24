@@ -26,6 +26,7 @@ from dateutil.tz import tzlocal
 
 MAX_SHORTCRID = 16777215
 DEFAULT_LANGUAGE = "en"
+DEFAULT_ENCODING = "utf-8"
 
 class Text:
     """Abstract class for textual information"""
@@ -200,7 +201,7 @@ class DabBearer(DigitalBearer):
         dab:<gcc>.<eid>.<sid>.<scids>.<xpad> in hex
         :: 
 
-        Where ``gcc`` is a combination of the first nibble of the EId and the ECC.
+        Where ``gcc`` is a combination of the first nibble of the SId and the ECC.
 
         For example:
         ::
@@ -211,8 +212,8 @@ class DabBearer(DigitalBearer):
         :type ecc: int
         :param eid: Ensemble ID
         :type eid: int
-        :param ecc: Service ID 
-        :type ecc: int
+        :param sid: Service ID 
+        :type sid: int
         :param scids: Service Component ID within the Service 
         :type scids: int
         :param xpad: X-PAD application 
@@ -238,7 +239,7 @@ class DabBearer(DigitalBearer):
         Parse a DAB Bearer URI from its string representation
         """        
         
-        pattern = re.compile("^dab:(.{3})\.(.{4})\.(.{4})\.(.{1})[\.(.+?)]{0,1}$")
+        pattern = re.compile("^dab:([0-9a-f]{3})\.([0-9a-f]{4})\.([0-9a-f]{4,8})\.([0-9a-f]{1})[\.(.+?)]{0,1}$")
         matcher = pattern.search(string)
         if not matcher: raise ValueError('bearer %s does not match the pattern: %s' % (string, pattern.pattern))
         ecc = int(matcher.group(1)[1:], 16)
@@ -251,13 +252,22 @@ class DabBearer(DigitalBearer):
         return DabBearer(ecc, eid, sid, scids, xpad)
     
     def __str__(self):
-        uri = 'dab:{gcc:03x}.{eid:04x}.{sid:04x}.{scids:01x}'.format(gcc=(self.eid >> 4 & 0xf00) + self.ecc, eid=self.eid, sid=self.sid, scids=self.scids)
+        if self.sid>65535: # this is a long SId which contains both ECC (first two nibbles) and CC (third nibble)
+            gcc = (self.sid >> 12 & 0xf00) + (self.sid >> 24)
+            uri = 'dab:{gcc:03x}.{eid:04x}.{sid:08x}.{scids:01x}'.format(gcc=gcc, eid=self.eid, sid=self.sid, scids=self.scids)
+        else: # this is a short SId which contains only the CC (first nibble)
+            gcc = (self.sid >> 4 & 0xf00) + self.ecc
+            uri = 'dab:{gcc:03x}.{eid:04x}.{sid:04x}.{scids:01x}'.format(gcc=gcc, eid=self.eid, sid=self.sid, scids=self.scids)
+ 
         if self.xpad is not None:
             uri += '.{xpad:04x}'.format(xpad=self.xpad)
         return uri
 
     def __repr__(self):
         return '<DabBearer: %s>' % str(self)
+
+    def __eq__(self, other):
+        return str(self) == str(other)
             
 class HdBearer(DigitalBearer):
 
@@ -292,9 +302,14 @@ class HdBearer(DigitalBearer):
     def __repr__(self):
         return '<DabBearer: %s>' % str(self)        
 
+    def __eq__(self, other):
+        return str(self) == str(other)
+
 class FmBearer(Bearer):
 
-    def __init__(self, ecc, pi, frequency, cost=None, offset=None):
+    BEARER_PATTERN=re.compile("fm:(\w{2}|[0-9a-f]{3})\.([0-9a-f]{4})\.(\*|.{5})", re.IGNORECASE)
+
+    def __init__(self, ecc, pi, frequency=None, cost=None, offset=None):
         """
         FM Service Bearer
 
@@ -307,11 +322,16 @@ class FmBearer(Bearer):
             fm:ce1.c479.09580
         :: 
 
+        Wildcards can also be used for frequency, indicating that *any* frequency will match the bearer
+
+        NOTE: the legacy format using the country code instead of GCC is supported for the time being 
+        but may be removed in a future version.
+
         :param ecc: Extended Country Code
         :type ecc: int
         :param pi: Programme Info code
         :type pi: int
-        :param frequency: Service frequency (Hz)
+        :param frequency: Service frequency (Hz), None for wildcard
         :type frequency: int
         """
      
@@ -322,7 +342,7 @@ class FmBearer(Bearer):
 
         if not isinstance(ecc, int): raise ValueError("ECC must be an integer")
         if not isinstance(pi, int): raise ValueError("PI must be an integer")
-        if not isinstance(frequency, int): raise ValueError("Frequency must be an integer")
+        if frequency is not None and not isinstance(frequency, int): raise ValueError("Frequency must be an integer")
         
     @classmethod
     def fromstring(cls, string):
@@ -330,16 +350,23 @@ class FmBearer(Bearer):
         Parse a FM Bearer URI from its string representation
         """        
         
-        pattern = re.compile("fm:(.{3})\.(.{4})\.(.{5})")
-        matcher = pattern.search(string)
-        if not matcher: raise ValueError('bearer %s does not match the pattern: %s' % (string, pattern))
-        ecc = int(matcher.group(1)[1:], 16)
+        matcher = FmBearer.BEARER_PATTERN.search(string)
+        if not matcher: raise ValueError('bearer %s does not match the pattern: %s' % (string, FmBearer.BEARER_PATTERN))
+        if len(matcher.group(1)) == 3:
+            ecc = int(matcher.group(1)[1:], 16)
+        else: # we assume the country code for legacy support and map to the ECC
+            ecc = int(map_countrycode_to_ecc(matcher.group(1)), 16)
         pi = int(matcher.group(2), 16)
-        frequency = int(matcher.group(3)) * 10
-        return FmBearer(ecc, pi, frequency)
+        if matcher.group(3) == '*':
+            return FmBearer(ecc, pi)
+        else:
+            return FmBearer(ecc, pi, int(matcher.group(3)) * 10)
     
     def __str__(self):
-        uri = 'fm:{gcc:03x}.{pi:04x}.{frequency:05d}'.format(gcc=(self.pi >> 4 & 0xf00) + self.ecc, pi=self.pi, frequency=int(self.frequency/10))
+        if self.frequency is None:
+            uri = 'fm:{gcc:03x}.{pi:04x}.*'.format(gcc=(self.pi >> 4 & 0xf00) + self.ecc, pi=self.pi)
+        else:
+            uri = 'fm:{gcc:03x}.{pi:04x}.{frequency:05d}'.format(gcc=(self.pi >> 4 & 0xf00) + self.ecc, pi=self.pi, frequency=int(self.frequency/10))
         return uri
     
     def __repr__(self):
@@ -348,9 +375,38 @@ class FmBearer(Bearer):
     def __eq__(self, other):
         return str(self) == str(other)
 
+"""
+map the legacy country code to an ECC
+"""
+COUNTRY_CODE_MAP = {
+    "al": "e0",
+    "dz": "e0",
+    "ad": "e0",
+    "am": "e4",
+    "at": "e0",
+    "az": "e3",
+    "by": "e3",
+    "ba": "e4",
+    "bg": "e1",
+    "hr": "e3",
+    "cy": "e1",
+    "dk": "e1",
+    "ee": "e4",
+    "fi": "e1",
+    "fr": "e1",
+    "ge": "e4",
+    "de": "e1",
+    "gr": "e1",
+    "hu": "e0",
+    "ie": "e3",
+    "il": "e0", # tbc
+}
+def map_countrycode_to_ecc(countrycode):
+    return COUNTRY_CODE_MAP.get(countrycode.lower())
+
 class IpBearer(DigitalBearer):
 
-    def __init__(self, uri, content, cost=None, offset=None, bitrate=None):
+    def __init__(self, uri, content=None, cost=None, offset=None, bitrate=None):
 
         """
         IP Service Bearer
@@ -367,7 +423,9 @@ class IpBearer(DigitalBearer):
     
     def __repr__(self):
         return '<IpBearer: %s>' % str(self)
- 
+
+    def __eq__(self, other):
+        return str(self) == str(other)
 
 class ProgrammeInfo:
     """The root of a PI document"""
@@ -631,7 +689,7 @@ class Scope:
     Contains the scope of the proposed schedule, in terms of time and bearers
     """
 
-    def __init__(self, start, end, bearers=[]):
+    def __init__(self, start=None, end=None, bearers=[]):
         """
         :param start: Scope start time, if not specified this is calculated from the programmes
         :type start: datetime
@@ -649,7 +707,7 @@ class Schedule:
     Contains programmes within a given time period.
     """
     
-    def __init__(self, scope : Scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
+    def __init__(self, scope=None, created=datetime.datetime.now(tzlocal()), version=1, originator=None):
         """x
         :param scope: Defined scope, otherwise proposed from the schedule
         :type scope: Scope
@@ -660,6 +718,7 @@ class Schedule:
         :param originator: Originator of the schedule
         :type originator: string
         """
+        if scope==None and type(scope) is not Scope: scope=Scope()
         if type(scope) is not Scope: raise ValueError("scope must be a Scope object")
         self.scope = scope
         self.created = created

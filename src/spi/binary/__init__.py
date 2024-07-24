@@ -5,6 +5,7 @@ import math
 import datetime, dateutil.tz
 import logging
 import sys
+from jdcal import gcal2jd
 from datetime import timedelta
 
 logger = logging.getLogger("spi.binary")
@@ -21,10 +22,10 @@ class Ensemble:
     :type version: integer
     """
     
-    def __init__(self, ecc, eid, version=1):
+    def __init__(self, ecc, eid, version=1, names=[]):
         self.ecc = ecc
         self.eid = eid
-        self.names = []
+        self.names = names
         self.descriptions = []
         self.media = []
         self.keywords = []
@@ -42,11 +43,12 @@ class Ensemble:
 
 class Element:
     
-    def __init__(self, tag, attributes=None, children=None, cdata=None):
+    def __init__(self, tag, attributes=None, children=None, cdata=None, rawbits=None):
         self.tag = tag
         self.attributes = (attributes if attributes is not None else [])
         self.children = (children if children is not None else [])
         self.cdata = cdata
+        self.rawbits = rawbits
         logger.debug('created new element: %s', self)
         
     def tobytes(self):
@@ -72,12 +74,17 @@ class Element:
         if self.cdata is not None: 
             logger.debug('rendering cdata: %s', self.cdata)
             data += self.cdata.tobytes()
-        
+
+        # encode Rawbits
+        if self.rawbits is not None:
+            logger.debug('rendering rawbits: %s', self.rawbits) 
+            data += self.rawbits
+           
         # b0-b7: element tag
         bits = encode_number(self.tag, 8)
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
         datalength = len(data)/8
         if datalength == 0:
@@ -137,8 +144,8 @@ class Element:
         i = 0
         e = Element(tag)
         logger.debug('parsing data of length %d bytes for element with tag 0x%02x', datalength, tag)
-        while i < data.length():
-            logger.debug('now parsing at offset %d / %d', i/8, data.length()/8)
+        while i < len(data):
+            logger.debug('now parsing at offset %d / %d', i/8, len(data)/8)
             child_tag = int(data[i:i+8].to01(), 2)            
             child_datalength = int(data[i+8:i+16].to01(), 2)
             start = 16
@@ -150,10 +157,10 @@ class Element:
                 start = 40
             logger.debug('child with tag 0x%02x for parent tag 0x%02x at offset %d has data length of %d bytes', child_tag, tag, i/8, child_datalength)
             end = start + (child_datalength * 8)
-            if i + end > data.length():
-                raise ValueError('end of data for element with tag 0x%02x at offset %d requested is beyond length: %d > %d: %s' % (child_tag, i/8, (i + end)/8, data.length() / 8, bitarray_to_hex(data[i:i+64])))
+            if i + end > len(data):
+                raise ValueError('end of data for element with tag 0x%02x at offset %d requested is beyond length: %d > %d: %s' % (child_tag, i/8, (i + end)/8, len(data) / 8, bitarray_to_hex(data[i:i+64])))
             child_data = data[i + start : i + end] 
-            if child_data.length() < 16*8: logger.debug('child element with tag 0x%02x for parent 0x%02x has data: %s', child_tag, tag, bitarray_to_hex(child_data))
+            if len(child_data) < 16*8: logger.debug('child element with tag 0x%02x for parent 0x%02x has data: %s', child_tag, tag, bitarray_to_hex(child_data))
                 
             # attributes
             if child_tag >= 0x80 and child_tag <= 0x87:
@@ -175,6 +182,7 @@ class Element:
             # default language
             elif child_tag == 0x06: 
                 logger.debug('parsing child as a default language (not yet implemented)')
+                print('trying to decode the language tag')
                 pass               
             # children
             elif child_tag >= 0x02 and child_tag <= 0x36:
@@ -228,17 +236,17 @@ class Attribute:
         # b8-15: element data length (0-253 bytes)
         # b16-31: extended element length (256-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
-        datalength = bits2bytes(data.length())
+        datalength = bits2bytes(len(data))
         if datalength <= 253:
             bits += encode_number(datalength, 8)
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.fromstring('\xfe')
+            tmp.fromstring(b'\xfe')
             bits += tmp
             bits += encode_number(datalength, 16)
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.fromstring('\xff')
+            tmp.fromstring(b'\xff')
             bits += tmp
             bits += encode_number(datalength, 24)
         else: raise ValueError('element data length exceeds the maximum allowed by the extended element length (24bits): %s > %s' + datalength + " > " + (1<<24))
@@ -318,7 +326,8 @@ class Attribute:
 genre_map = dict(
     IntentionCS=1,
     FormatCS=2,
-    ContentCS=3, # what happened to 4?!
+    ContentCS=3,
+    IntendedAudienceCS=4,
     OriginationCS=5,
     ContentAlertCS=6,
     MediaTypeCS=7,
@@ -334,6 +343,7 @@ def encode_genre(genre):
     bits.setall(False)
     
     # b0-3: RFU(0)
+    bits += encode_number(0,4)
     # b4-7: CS
     cs = segments[4]
     if cs in list(genre_map.keys()): cs_val = genre_map[cs]
@@ -358,9 +368,9 @@ def decode_genre(bits):
     level = '%d' % cs_val
     
     # optional schema levels
-    if bits.length() > 8:
+    if len(bits) > 8:
         i = 8
-        while i < bits.length():
+        while i < len(bits):
             sublevel = int(bits[i:i+8].to01(), 2)
             level += '.%d' % sublevel
             i += 8
@@ -387,12 +397,7 @@ def encode_timepoint(timepoint):
     # b0: RFA(0)
         
     # b1-17: Date
-    a = (14 - timepoint.month) / 12
-    y = timepoint.year + 4800 - a
-    m = timepoint.month + (12 * a) - 3
-    jdn = timepoint.day + ((153 * m) + 2) / 5 + (365 * y) + (y / 4) - (y / 100) + (y / 400) - 32045
-    jd = jdn + timepoint.hour / 24 + timepoint.minute / 1440 + timepoint.second / 86400
-    mjd = (int)(jd - 2400000.5)
+    mjd = int((gcal2jd(timepoint.year,timepoint.month,timepoint.day))[1])
     bits += encode_number(mjd, 17)
         
     # b18: RFA(0)
@@ -536,7 +541,7 @@ def decode_contentid(bits):
     xpad = None
     
     try:
-        if bits.length() == 24: # EnsembleId
+        if len(bits) == 24: # EnsembleId
             # ECC, EId
             ecc = int(bits[0:8].to01(), 2)
             eid = int(bits[8:24].to01(), 2)
@@ -577,7 +582,7 @@ def decode_tokentable(bits):
     tokens = {}
     
     i = 0 
-    while i < bits.length():
+    while i < len(bits):
         tag = int(bits[i:i+8].to01(), 2)
         length = int(bits[i+8:i+16].to01(), 2)
         data = bits[i+16:i+16+(length*8)].tobytes().decode(DEFAULT_ENCODING)
@@ -600,7 +605,7 @@ enum_values = {
 
 def decode_enum(parent_tag, tag, bits):
     
-    if bits.length() != 8: raise ValueError('enum data for parent/attribute 0x%02x/0x%02x is of incorrect length: %d bytes' % (parent_tag, tag, bits.length()/8))
+    if len(bits) != 8: raise ValueError('enum data for parent/attribute 0x%02x/0x%02x is of incorrect length: %d bytes' % (parent_tag, tag, len(bits)/8))
     
     value = int(bits.to01(), 2)
     key = (parent_tag, tag, value)
@@ -626,21 +631,23 @@ class CData:
         bits.frombytes(b'\x01')
   
         # b8-15: element data length (0-253 bytes)
-        # b16-31: extended element length (256-65536 bytes)
+        # b16-31: extended element length (254-65536 bytes)
         # b16-39: extended element length (65537-16777216 bytes)
+        
         datalength = len(self.value.encode()) # ensure we get the right count for the encoding
+        
         if datalength <= 253:
             tmp = encode_number(datalength, 8)
             bits += tmp
         elif datalength >= 254 and datalength <= 1<<16:
             tmp = bitarray()
-            tmp.frombytes('\xfe')
+            tmp.frombytes(b'\xfe')
             bits += tmp
             tmp = encode_number(datalength, 16)
             bits += tmp
         elif datalength > 1<<16 and datalength <= 1<<24: 
             tmp = bitarray()
-            tmp.frombytes('\xff')
+            tmp.frombytes(b'\xff')
             bits += tmp
             tmp = encode_number(datalength, 24)
             bits += tmp
@@ -691,7 +698,9 @@ def marshall_serviceinfo(info, ensemble):
 
     # default language
     default_language_element = Element(0x06)
-    default_language_element.attributes.append(Attribute(0x80, DEFAULT_LANGUAGE, encode_string)) # TODO make this configurable in a better way
+    language = bitarray()
+    language.frombytes(DEFAULT_LANGUAGE.encode('utf-8'))
+    default_language_element.rawbits = language
     info_element.children.append(default_language_element)
 
     # ensemble
@@ -728,10 +737,10 @@ def build_schedule(schedule):
     if schedule.originator is not None:
         schedule_element.attributes.append(Attribute(0x82, schedule.originator, encode_string))
         
-    # schedule scope TODO
-    #scope = schedule.get_scope()
-    #if scope is not None:
-    #    schedule_element.children.append(build_scope(scope))
+    # schedule scope
+    scope = schedule.scope
+    if scope is not None and scope.start is not None and scope.end is not None:
+        schedule_element.children.append(build_scope(scope))
     
     # programmes
     for programme in schedule.programmes:
@@ -756,7 +765,8 @@ def build_schedule(schedule):
             child = build_location(location)
             programme_element.children.append(child)
         # media
-        if programme.media: programme_element.children.append(build_mediagroup(programme.media))
+        for media in programme.media:
+            programme_element.children.append(build_mediagroup(media))
         # genre
         for genre in programme.genres:
             child = build_genre(genre)
@@ -842,30 +852,29 @@ def build_description(description):
     mediagroup_element.children.append(description_element)
     return mediagroup_element
 
-def build_mediagroup(all_media):
+def build_mediagroup(media):
+
     mediagroup_element = Element(0x13)
-    
-    for media in all_media :
+
+    if not isinstance(media, Multimedia):
+        raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+
+    media_element = Element(0x2b)
         
-        if not isinstance(media, Multimedia):
-            raise ValueError('object must be of type %s (is %s)' % (Multimedia.__name__, type(media)))
+    if media.content is not None:
+        media_element.attributes.append(Attribute(0x80, media.content, encode_string))
+    if media.url is not None:
+        media_element.attributes.append(Attribute(0x82, media.url, encode_string))
+    if media.type == Multimedia.LOGO_UNRESTRICTED:
+        media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
+        if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
+        if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
+    if media.type == Multimedia.LOGO_COLOUR_SQUARE:
+        media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
+    if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
+        media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
         
-        media_element = Element(0x2b)
-        
-        if media.content is not None:
-            media_element.attributes.append(Attribute(0x80, media.content, encode_string))
-        if media.url is not None:
-            media_element.attributes.append(Attribute(0x82, media.url, encode_string))
-        if media.type == Multimedia.LOGO_UNRESTRICTED:
-            media_element.attributes.append(Attribute(0x83, 0x02, encode_number, 8))
-            if media.width: media_element.attributes.append(Attribute(0x84, media.width, encode_number, 16))
-            if media.height: media_element.attributes.append(Attribute(0x85, media.height, encode_number, 16))
-        if media.type == Multimedia.LOGO_COLOUR_SQUARE:
-            media_element.attributes.append(Attribute(0x83, 0x04, encode_number, 8))
-        if media.type == Multimedia.LOGO_COLOUR_RECTANGLE:
-            media_element.attributes.append(Attribute(0x83, 0x06, encode_number, 8))
-        
-        mediagroup_element.children.append(media_element)
+    mediagroup_element.children.append(media_element)
 
     return mediagroup_element
     
@@ -913,7 +922,8 @@ def build_programme_event(event):
     for location in event.locations:
         event_element.children.append(build_location(location))    
     # media
-    if event.media: event_element.children.append(build_mediagroup(event.media))
+    for media in event.media:
+        event_element.children.append(build_mediagroup(media))
     # genre
     for genre in event.genres:
         event_element.children.append(build_genre(genre))
@@ -951,8 +961,9 @@ def build_service(service):
         service_element.children.append(build_description(description))
 
     # media
-    if service.media: service_element.children.append(build_mediagroup(service.media))
-    
+    for media in service.media:
+        service_element.children.append(build_mediagroup(media))
+
     # genre
     for genre in service.genres:
         service_element.children.append(build_genre(genre))
@@ -967,11 +978,10 @@ def build_service(service):
 
     # radiodns lookup
     if service.lookup:
-        from urllib.parse import urlparse
-        url = urlparse(service.lookup)
+        radiodns = str(service.lookup).partition('/')
         lookup_element = Element(0x31)
-        lookup_element.attributes.append(Attribute(0x80, url.netloc, encode_string))
-        lookup_element.attributes.append(Attribute(0x81, url.path[1:], encode_string))
+        lookup_element.attributes.append(Attribute(0x80, radiodns[0], encode_string))
+        lookup_element.attributes.append(Attribute(0x81, radiodns[2], encode_string))
         service_element.children.append(lookup_element)
 
     return service_element
@@ -997,7 +1007,8 @@ def build_ensemble(ensemble, services):
         event_element.children.append(build_description(description))
 
     # media
-    if ensemble.media: ensemble_element.children.append(build_mediagroup(ensemble.media))
+    for media in ensemble.media:
+        ensemble_element.children.append(build_mediagroup(media))
 
     # keywords
 
